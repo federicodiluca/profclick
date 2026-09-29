@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Segmented } from '@/components/bits'
 import { BoardIcon, GoogleIcon, SuggestIcon, UploadIcon, WrittenTestIcon } from '@/components/icons'
+import { InstallButton } from '@/components/InstallButton'
 import { Button } from '@/components/ui/button'
 import { setYear } from '@/core/actions'
 import { today } from '@/core/dates'
@@ -54,6 +55,7 @@ export default function Welcome() {
           <Button size="lg" variant="outline" onClick={() => importData(sampleData(today()))}>
             Prova con dati di esempio
           </Button>
+          <InstallButton size="lg" variant="ghost" label="Installa l'app" />
         </div>
       </div>
 

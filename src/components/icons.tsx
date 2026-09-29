@@ -374,6 +374,36 @@ export function DownloadIcon(props: IconProps) {
   )
 }
 
+/** Telefono con freccia verso il basso: installa l'app. */
+export function InstallIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="6" y="2.5" width="12" height="19" rx="2.5" {...tint} />
+      <rect x="6" y="2.5" width="12" height="19" rx="2.5" />
+      <path d="M12 7v7M9.2 11.5 12 14.3l2.8-2.8M10.5 18.5h3" />
+    </Icon>
+  )
+}
+
+/** Il pulsante Condividi di Safari: riquadro con freccia verso l'alto. */
+export function ShareIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8.5 9H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1.5M12 14V3M8.5 6.5 12 3l3.5 3.5" />
+    </Icon>
+  )
+}
+
+/** Riquadro con il più: "Aggiungi alla schermata Home". */
+export function AddSquareIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="4" width="16" height="16" rx="3.5" />
+      <path d="M12 8.5v7M8.5 12h7" />
+    </Icon>
+  )
+}
+
 export function UploadIcon(props: IconProps) {
   return (
     <Icon {...props}>

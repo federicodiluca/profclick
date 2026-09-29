@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useRoute } from 'wouter'
 import { ClassesIcon, type IconComponent, WeekIcon, YearIcon } from '@/components/icons'
+import { InstallButton } from '@/components/InstallButton'
 import { SyncButton } from '@/components/SyncButton'
 import { cn } from '@/lib/utils'
 
@@ -46,7 +47,10 @@ export function Layout({ children }: { children: ReactNode }) {
         <nav className="hidden items-center gap-1 sm:flex" aria-label="Sezioni">
           {nav}
         </nav>
-        <SyncButton />
+        <div className="flex items-center gap-1">
+          <InstallButton variant="ghost" size="sm" />
+          <SyncButton />
+        </div>
       </header>
 
       <main className="flex-1 pb-24 sm:pb-10">{children}</main>
