@@ -4,6 +4,7 @@ import { ClassesIcon, type IconComponent, WeekIcon, YearIcon } from '@/component
 import { InstallButton } from '@/components/InstallButton'
 import { SyncButton } from '@/components/SyncButton'
 import { cn } from '@/lib/utils'
+import { useData } from '@/state/data'
 
 function NavLink({ to, icon: Icon, children }: { to: string; icon: IconComponent; children: ReactNode }) {
   const [active] = useRoute(to === '/' ? '/' : `${to}/*?`)
@@ -23,6 +24,9 @@ function NavLink({ to, icon: Icon, children }: { to: string; icon: IconComponent
 }
 
 export function Layout({ children }: { children: ReactNode }) {
+  // Prima di scegliere l'anno scolastico c'è solo il benvenuto: le sezioni non servono ancora.
+  const { data } = useData()
+  const ready = data.year !== null
   const nav = (
     <>
       <NavLink to="/" icon={WeekIcon}>
@@ -44,24 +48,28 @@ export function Layout({ children }: { children: ReactNode }) {
           <img src="/favicon.svg" alt="" className="size-7" />
           ProfClick
         </Link>
-        <nav className="hidden items-center gap-1 sm:flex" aria-label="Sezioni">
-          {nav}
-        </nav>
+        {ready && (
+          <nav className="hidden items-center gap-1 sm:flex" aria-label="Sezioni">
+            {nav}
+          </nav>
+        )}
         <div className="flex items-center gap-1">
           <InstallButton variant="ghost" size="sm" />
           <SyncButton />
         </div>
       </header>
 
-      <main className="flex-1 pb-24 sm:pb-10">{children}</main>
+      <main className={cn('flex-1 pb-10', ready && 'pb-24 sm:pb-10')}>{children}</main>
 
       {/* Da telefono la navigazione sta in basso, a portata di pollice. */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t bg-background/95 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden"
-        aria-label="Sezioni"
-      >
-        {nav}
-      </nav>
+      {ready && (
+        <nav
+          className="fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t bg-background/95 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden"
+          aria-label="Sezioni"
+        >
+          {nav}
+        </nav>
+      )}
     </div>
   )
 }
