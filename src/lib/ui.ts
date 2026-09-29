@@ -1,0 +1,19 @@
+// Funzioni di presentazione condivise dai componenti.
+
+import type { Activity, Course } from '@/core/model'
+
+export const COURSE_COLORS = 8
+
+export function courseColor(course: Pick<Course, 'color'>): string {
+  return `var(--course-${course.color % COURSE_COLORS})`
+}
+
+/** Le valutazioni in rosso, il resto in blu: come la matita del docente. */
+export function activityTone(activity: Activity): string {
+  return activity.kind === 'verifica' ? 'text-pencil-red' : 'text-pencil-blue'
+}
+
+export function formatHours(hours: number): string {
+  const rounded = Math.round(hours * 10) / 10
+  return `${String(rounded).replace('.', ',')} ${rounded === 1 ? 'ora' : 'ore'}`
+}

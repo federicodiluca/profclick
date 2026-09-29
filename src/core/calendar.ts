@@ -1,0 +1,116 @@
+// I giorni di lezione di una classe, ricavati dall'orario settimanale e dal calendario
+// scolastico. Non si salvano: cambiando l'orario o aggiungendo un ponte, le lezioni si
+// ricalcolano da sole.
+//
+// Le lezioni senza giorno (ADR 0008) si mettono nei giorni liberi della settimana, in
+// ordine: la prima il lunedì, la seconda il martedì, … Il giorno è solo un segnaposto (non
+// si mostra), ma così una festività in settimana toglie una lezione, come succede davvero.
+
+import { addDays, eachDay, inRange, startOfWeek, weekday, type ISODate } from './dates'
+import { type Course, type Lesson, lessonKey, type Period, type ProfclickData, type SchoolYear } from './model'
+
+export interface LessonSlot {
+  courseId: string
+  date: ISODate
+  hours: number
+  /** In laboratorio o con l'ITP. */
+  lab: boolean
+  /** Lezione senza giorno fisso: la data è un segnaposto nella sua settimana. */
+  floating: boolean
+  /** Posizione nella settimana, da 1: "lezione 2". */
+  index: number
+  /** Il piano di quel giorno, se ce n'è uno. */
+  lesson?: Lesson
+}
+
+interface DaySlot {
+  hours: number
+  lab: boolean
+  floating: boolean
+  index: number
+}
+
+/** La settimana tipo di una classe, giorno per giorno. */
+export function weekPattern(course: Course): Map<number, DaySlot> {
+  const pattern = new Map<number, DaySlot>()
+  // Più lezioni nello stesso giorno diventano una sola, con le ore sommate.
+  for (const slot of course.schedule) {
+    if (slot.day === null || slot.hours <= 0) continue
+    const current = pattern.get(slot.day)
+    pattern.set(slot.day, { hours: (current?.hours ?? 0) + slot.hours, lab: Boolean(current?.lab) || slot.lab, floating: false, index: 0 })
+  }
+  let day = 1
+  for (const slot of course.schedule) {
+    if (slot.day !== null || slot.hours <= 0) continue
+    while (pattern.has(day) && day < 6) day++
+    const current = pattern.get(day)
+    pattern.set(day, { hours: (current?.hours ?? 0) + slot.hours, lab: Boolean(current?.lab) || slot.lab, floating: true, index: 0 })
+  }
+  // Numerazione delle lezioni nella settimana, nell'ordine dei giorni.
+  ;[...pattern.keys()].sort().forEach((d, i) => (pattern.get(d)!.index = i + 1))
+  return pattern
+}
+
+export function hasFloatingLessons(course: Course): boolean {
+  return course.schedule.some((s) => s.day === null && s.hours > 0)
+}
+
+export function holidayOn(year: SchoolYear, date: ISODate) {
+  return year.holidays.find((h) => inRange(date, h.from, h.to))
+}
+
+export function periodOf(year: SchoolYear, date: ISODate): Period | undefined {
+  return year.periods.find((p) => inRange(date, p.start, p.end))
+}
+
+/** Il periodo in corso, o il più vicino se oggi è fuori dall'anno. */
+export function currentPeriod(year: SchoolYear, date: ISODate): Period | undefined {
+  return periodOf(year, date) ?? (date < year.start ? year.periods[0] : year.periods.at(-1))
+}
+
+/**
+ * Le lezioni di una classe in un intervallo, in ordine di data. Le lezioni annullate
+ * restano nell'elenco (si vedono, barrate) ma non contano come ore disponibili.
+ */
+export function courseSlots(data: ProfclickData, course: Course, from?: ISODate, to?: ISODate): LessonSlot[] {
+  const year = data.year
+  if (!year) return []
+  const start = from && from > year.start ? from : year.start
+  const end = to && to < year.end ? to : year.end
+  const pattern = weekPattern(course)
+  const slots: LessonSlot[] = []
+  for (const date of eachDay(start, end)) {
+    const day = pattern.get(weekday(date))
+    if (!day || holidayOn(year, date)) continue
+    slots.push({ courseId: course.id, date, ...day, lesson: data.lessons[lessonKey(course.id, date)] })
+  }
+  return slots
+}
+
+export function periodSlots(data: ProfclickData, course: Course, period: Period): LessonSlot[] {
+  return courseSlots(data, course, period.start, period.end)
+}
+
+export function isAvailable(slot: LessonSlot): boolean {
+  return !slot.lesson?.cancelled
+}
+
+export function sortedCourses(data: ProfclickData): Course[] {
+  return Object.values(data.courses).sort((a, b) => a.order - b.order || a.className.localeCompare(b.className))
+}
+
+/** Tutte le lezioni con un giorno vero, di tutte le classi, in un giorno. */
+export function slotsOn(data: ProfclickData, date: ISODate): LessonSlot[] {
+  return sortedCourses(data)
+    .flatMap((c) => courseSlots(data, c, date, date))
+    .filter((s) => !s.floating)
+}
+
+/** Le lezioni senza giorno fisso della settimana che inizia dal lunedì indicato. */
+export function floatingSlotsOfWeek(data: ProfclickData, monday: ISODate): LessonSlot[] {
+  const sunday = addDays(startOfWeek(monday), 6)
+  return sortedCourses(data)
+    .filter(hasFloatingLessons)
+    .flatMap((c) => courseSlots(data, c, monday, sunday))
+    .filter((s) => s.floating)
+}

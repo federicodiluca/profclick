@@ -1,0 +1,407 @@
+import { createElement, useState } from 'react'
+import { ProgressBar, Segmented, Toggle } from '@/components/bits'
+import { ArrowDownIcon, ArrowUpIcon, DoneIcon, MinorGradeIcon, PasteIcon, PlusIcon, PrepIcon, TrashIcon } from '@/components/icons'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { deleteTopic, moveTopic, saveCourse, saveTopic, saveTopics } from '@/core/actions'
+import { formatShort } from '@/core/dates'
+import { type ParsedTopic, parseProgram } from '@/core/importText'
+import { assessmentLabel, type Course, GRADE_LABELS, type GradeType, isMinor, type PlannedAssessment, type PrepItem, type Topic } from '@/core/model'
+import { courseTopics, type TopicProgress, topicProgress } from '@/core/progress'
+import { GRADE_ICONS } from '@/lib/activityIcons'
+import { newId } from '@/lib/id'
+import { formatHours } from '@/lib/ui'
+import { cn } from '@/lib/utils'
+import { useData } from '@/state/data'
+
+const STATUS_LABELS: Record<TopicProgress['status'], string> = {
+  'da-pianificare': 'Da pianificare',
+  pianificato: 'Pianificato',
+  'in-corso': 'In corso',
+  fatto: 'Fatto',
+}
+
+/** Ore stimate quando non sono indicate: circa due settimane di lezioni. */
+const DEFAULT_HOURS = 8
+
+export function ProgramTab({ course }: { course: Course }) {
+  const { data, applyWithUndo } = useData()
+  const [editing, setEditing] = useState<Topic | 'new' | null>(null)
+  const [importing, setImporting] = useState(false)
+  const progress = topicProgress(data, course)
+  const periods = data.year!.periods
+  const totals = periods.map((p) => ({ period: p, hours: progress.filter((x) => x.topic.periodId === p.id).reduce((s, x) => s + x.topic.hours, 0) }))
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">{totals.map((t) => `${t.period.name}: ${formatHours(t.hours)}`).join(' · ')}</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImporting(true)}>
+            <PasteIcon /> Incolla da una nota
+          </Button>
+          <Button onClick={() => setEditing('new')}>
+            <PlusIcon /> Argomento
+          </Button>
+        </div>
+      </div>
+
+      {progress.length === 0 && (
+        <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          Il programma è vuoto. Il modo più veloce: copia la nota con il programma o con l'elenco dei voti (da Keep, da un documento, dal piano di lavoro
+          dell'anno scorso) e usa <strong>Incolla da una nota</strong>.
+        </div>
+      )}
+
+      <ol className="space-y-2">
+        {progress.map((p, i) => {
+          const prep = course.prep.filter((x) => x.topicId === p.topic.id && !x.done).length
+          return (
+            <li key={p.topic.id} className="rounded-xl border bg-card p-3">
+              <div className="flex items-start gap-3">
+                <span
+                  className={cn(
+                    'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold',
+                    p.status === 'fatto' ? 'bg-done text-background' : 'bg-muted',
+                  )}
+                >
+                  {p.status === 'fatto' ? <DoneIcon className="size-4" /> : i + 1}
+                </span>
+                <button type="button" className="min-w-0 flex-1 space-y-1.5 text-left" onClick={() => setEditing(p.topic)}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <span className="font-medium">{p.topic.title}</span>
+                    <span className="text-xs text-muted-foreground">{periods.find((x) => x.id === p.topic.periodId)?.name ?? 'Periodo da decidere'}</span>
+                  </div>
+                  {p.topic.points.length > 0 && <p className="text-xs text-muted-foreground">{p.topic.points.join(' · ')}</p>}
+                  {(p.topic.assessments.length > 0 || prep > 0) && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {p.topic.assessments.map((a) => (
+                        <AssessmentChip key={a.id} assessment={a} />
+                      ))}
+                      {prep > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">
+                          <PrepIcon className="size-3.5" /> {prep} da preparare
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {p.topic.hours > 0 && (
+                    <>
+                      <ProgressBar value={p.status === 'fatto' ? 1 : p.doneHours} max={p.status === 'fatto' ? 1 : p.topic.hours} />
+                      <p className="text-xs text-muted-foreground">
+                        {STATUS_LABELS[p.status]} · {formatHours(p.doneHours)} fatte, {formatHours(p.plannedHours)} in calendario su{' '}
+                        {formatHours(p.topic.hours)} stimate
+                        {p.firstDate && ` · ${formatShort(p.firstDate)} → ${formatShort(p.lastDate!)}`}
+                      </p>
+                    </>
+                  )}
+                </button>
+                <div className="flex shrink-0 flex-col">
+                  <Button variant="ghost" size="icon-xs" aria-label="Sposta su" disabled={i === 0} onClick={() => applyWithUndo(moveTopic(p.topic.id, -1), 'Argomento spostato')}>
+                    <ArrowUpIcon />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Sposta giù"
+                    disabled={i === progress.length - 1}
+                    onClick={() => applyWithUndo(moveTopic(p.topic.id, 1), 'Argomento spostato')}
+                  >
+                    <ArrowDownIcon />
+                  </Button>
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+
+      <TopicDialog course={course} topic={editing} onClose={() => setEditing(null)} />
+      <ImportDialog course={course} open={importing} onClose={() => setImporting(false)} />
+    </div>
+  )
+}
+
+function AssessmentChip({ assessment }: { assessment: Pick<PlannedAssessment, 'type' | 'weight' | 'text'> }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-pencil-red/30 px-2 py-0.5 text-xs text-pencil-red">
+      {createElement(isMinor(assessment) ? MinorGradeIcon : GRADE_ICONS[assessment.type], { className: 'size-3.5' })}
+      {assessmentLabel(assessment)}
+      {assessment.text && <span className="opacity-75">· {assessment.text}</span>}
+    </span>
+  )
+}
+
+function TopicDialog({ course, topic, onClose }: { course: Course; topic: Topic | 'new' | null; onClose: () => void }) {
+  return (
+    <Dialog open={topic !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+        {topic && <TopicForm course={course} topic={topic === 'new' ? undefined : topic} onClose={onClose} />}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; onClose: () => void }) {
+  const { data, apply, applyWithUndo } = useData()
+  const periods = data.year!.periods
+  const [id] = useState(() => topic?.id ?? newId())
+  const [title, setTitle] = useState(topic?.title ?? '')
+  const [hours, setHours] = useState(String(topic?.hours ?? DEFAULT_HOURS))
+  const [periodId, setPeriodId] = useState<string>(topic?.periodId ?? courseTopics(data, course.id).at(-1)?.periodId ?? periods[0].id)
+  const [points, setPoints] = useState(topic?.points.join('\n') ?? '')
+  const [assessments, setAssessments] = useState<PlannedAssessment[]>(topic?.assessments ?? [])
+  const [prep, setPrep] = useState<PrepItem[]>(course.prep.filter((p) => p.topicId === id))
+  const [completed, setCompleted] = useState(topic?.completed ?? false)
+
+  const setAssessment = (i: number, patch: Partial<PlannedAssessment>) => setAssessments(assessments.map((a, j) => (j === i ? { ...a, ...patch } : a)))
+
+  const save = () => {
+    apply((d) => {
+      let next = saveTopic({
+        id,
+        courseId: course.id,
+        title: title.trim(),
+        hours: Math.max(0, Number(hours.replace(',', '.')) || 0),
+        periodId: periodId === 'none' ? null : periodId,
+        points: points
+          .split('\n')
+          .map((p) => p.trim())
+          .filter(Boolean),
+        assessments,
+        completed,
+        order: topic?.order ?? courseTopics(d, course.id).length,
+      })(d)
+      const others = course.prep.filter((p) => p.topicId !== id)
+      const mine = prep.filter((p) => p.text.trim())
+      if (JSON.stringify(mine) !== JSON.stringify(course.prep.filter((p) => p.topicId === id))) {
+        next = saveCourse({ ...next.courses[course.id], prep: [...others, ...mine] })(next)
+      }
+      return next
+    })
+    onClose()
+  }
+
+  return (
+    <form
+      className="grid gap-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (title.trim()) save()
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>{topic ? 'Argomento' : 'Nuovo argomento'}</DialogTitle>
+      </DialogHeader>
+      <div className="grid grid-cols-[1fr_auto] gap-3">
+        <div className="grid gap-1.5">
+          <Label htmlFor="topic-title">Titolo</Label>
+          <Input id="topic-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!topic} placeholder="Array e matrici" />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="topic-hours">Ore stimate</Label>
+          <Input id="topic-hours" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} className="w-20" />
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        <Label>Periodo</Label>
+        <Segmented value={periodId} onChange={setPeriodId} options={[...periods.map((p) => ({ value: p.id, label: p.name })), { value: 'none', label: 'Da decidere' }]} />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Valutazioni previste alla fine</Label>
+        {assessments.map((a, i) => (
+          <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
+            <Segmented<GradeType>
+              value={a.type}
+              onChange={(type) => setAssessment(i, { type })}
+              options={(['scritto', 'teorico', 'pratico'] as const).map((t) => ({ value: t, label: GRADE_LABELS[t] }))}
+            />
+            <Toggle on={a.weight < 100} onClick={() => setAssessment(i, { weight: a.weight < 100 ? 100 : course.rules.minorWeight })}>
+              {a.weight < 100 ? `Minore ${a.weight}%` : 'Voto pieno'}
+            </Toggle>
+            {a.weight < 100 && (
+              <Input
+                type="number"
+                min={5}
+                max={95}
+                step={5}
+                value={a.weight}
+                onChange={(e) => setAssessment(i, { weight: Math.min(95, Math.max(5, Number(e.target.value) || 5)) })}
+                className="h-7 w-16 text-center"
+                aria-label="Peso in percentuale"
+              />
+            )}
+            <Input value={a.text} onChange={(e) => setAssessment(i, { text: e.target.value })} placeholder="con orale, prova parallela…" className="h-7 min-w-32 flex-1" />
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Togli valutazione" onClick={() => setAssessments(assessments.filter((_, j) => j !== i))}>
+              <TrashIcon />
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="justify-self-start"
+          onClick={() => setAssessments([...assessments, { id: newId(), type: assessments.at(-1)?.type === 'scritto' ? 'pratico' : 'scritto', weight: 100, text: '' }])}
+        >
+          <PlusIcon /> Valutazione
+        </Button>
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Da preparare</Label>
+        {prep.map((p, i) => (
+          <div key={p.id} className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={p.done}
+              onChange={() => setPrep(prep.map((x, j) => (j === i ? { ...x, done: !x.done } : x)))}
+              className="size-4 accent-[var(--done)]"
+              aria-label="Pronto"
+            />
+            <Input value={p.text} onChange={(e) => setPrep(prep.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} className={cn('h-8', p.done && 'line-through opacity-60')} />
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Togli" onClick={() => setPrep(prep.filter((_, j) => j !== i))}>
+              <TrashIcon />
+            </Button>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => setPrep([...prep, { id: newId(), text: '', topicId: id, done: false }])}>
+          <PrepIcon /> Slide, esercizi, laboratorio…
+        </Button>
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="topic-points">Sotto-punti, uno per riga</Label>
+        <Textarea id="topic-points" value={points} onChange={(e) => setPoints(e.target.value)} rows={3} />
+      </div>
+      <div>
+        <Toggle on={completed} onClick={() => setCompleted(!completed)}>
+          Già concluso
+        </Toggle>
+      </div>
+      <DialogFooter className="sm:justify-between">
+        {topic ? (
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              applyWithUndo(deleteTopic(topic.id), 'Argomento eliminato')
+              onClose()
+            }}
+          >
+            <TrashIcon /> Elimina
+          </Button>
+        ) : (
+          <span />
+        )}
+        <Button type="submit" disabled={!title.trim()}>
+          Salva
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+/**
+ * Il periodo di ogni argomento: quello scritto nella nota (1️⃣, 2️⃣), altrimenti quello della
+ * riga prima; se la nota non ne indica nessuno, si dividono in parti uguali per ore.
+ */
+function assignPeriods(parsed: ParsedTopic[], count: number): number[] {
+  if (parsed.some((t) => t.period !== null)) return parsed.map((t) => Math.min(count, t.period ?? 1) - 1)
+  const total = parsed.reduce((s, t) => s + (t.hours ?? DEFAULT_HOURS), 0)
+  let cumulative = 0
+  return parsed.map((t) => {
+    const index = Math.min(count - 1, Math.floor((cumulative / Math.max(total, 1)) * count))
+    cumulative += t.hours ?? DEFAULT_HOURS
+    return index
+  })
+}
+
+function ImportDialog({ course, open, onClose }: { course: Course; open: boolean; onClose: () => void }) {
+  const { data, applyWithUndo } = useData()
+  const [text, setText] = useState('')
+  const periods = data.year!.periods
+  const parsed = parseProgram(text)
+  const periodIndex = assignPeriods(parsed, periods.length)
+  const existing = courseTopics(data, course.id)
+
+  const toTopic = (t: ParsedTopic, i: number): Omit<Topic, 'updatedAt'> => ({
+    id: newId(),
+    courseId: course.id,
+    title: t.title,
+    hours: t.hours ?? DEFAULT_HOURS,
+    points: t.points,
+    periodId: periods[periodIndex[i]].id,
+    assessments: t.assessments.map((a) => ({ id: newId(), type: a.type, weight: a.weight ?? (a.minor ? course.rules.minorWeight : 100), text: a.text })),
+    completed: t.completed,
+    order: existing.length + i,
+  })
+
+  const importAll = () => {
+    const topics = parsed.map(toTopic)
+    applyWithUndo(saveTopics(topics), `${topics.length} argomenti importati`)
+    setText('')
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Incolla il programma</DialogTitle>
+          <DialogDescription>
+            Va bene quasi tutto: un elenco di argomenti (le righe rientrate diventano sotto-punti, le ore si leggono se scritte come "(10h)"), l'elenco dei
+            voti con 1️⃣ 2️⃣ per il quadrimestre e "(orale, 30%)", o la lista dei prossimi passi con ⚠️ per le verifiche e ⬅️ dove sei arrivato.
+          </DialogDescription>
+        </DialogHeader>
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={10}
+          autoFocus
+          placeholder={'1️⃣ Architettura dei calcolatori (orale)\n✳️ Progetto computer (pratico, 30%)\n2️⃣ Sistemi di numerazione (scritto)\n2️⃣ Sistemi di numerazione (pratico)'}
+          className="font-mono text-xs"
+        />
+        {parsed.length > 0 && (
+          <div className="space-y-1 rounded-lg bg-muted p-3 text-sm">
+            <p className="text-xs font-medium text-muted-foreground">
+              Anteprima: {parsed.length} argomenti, {parsed.reduce((s, t) => s + t.assessments.length, 0)} valutazioni. Le ore mancanti diventano {DEFAULT_HOURS}: le
+              correggi dopo.
+            </p>
+            <ol className="list-decimal space-y-1.5 pl-5">
+              {parsed.map((t, i) => (
+                <li key={i}>
+                  <span className={cn(t.completed && 'text-muted-foreground line-through')}>{t.title}</span>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    · {t.hours ?? `${DEFAULT_HOURS}?`} h · {periods[periodIndex[i]].name}
+                  </span>
+                  {t.points.length > 0 && <span className="block text-xs text-muted-foreground">{t.points.join(' · ')}</span>}
+                  {t.assessments.length > 0 && (
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {t.assessments.map((a, j) => (
+                        <AssessmentChip key={j} assessment={{ type: a.type, weight: a.weight ?? (a.minor ? course.rules.minorWeight : 100), text: a.text }} />
+                      ))}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Annulla
+          </Button>
+          <Button disabled={parsed.length === 0} onClick={importAll}>
+            Importa {parsed.length || ''} argomenti
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
