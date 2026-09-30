@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { toast } from 'sonner'
 import { Section } from '@/components/bits'
+import { ShareApp } from '@/components/ShareApp'
 import { CalendarAddIcon, DownloadIcon, GoogleIcon, PlusIcon, TrashIcon, UploadIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -110,6 +111,8 @@ export default function YearPage() {
           Federico Di Luca
         </a>
         , sviluppatore e docente. <a href="/privacy/" className="underline-offset-4 hover:underline">Privacy</a>
+        {' · '}
+        <ShareApp className="underline-offset-4 hover:underline" />
       </footer>
     </div>
   )

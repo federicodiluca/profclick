@@ -23,7 +23,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "icons:build": "node scripts/build-icons.mjs",
-    "social:build": "node scripts/build-social.mjs"
+    "social:build": "node scripts/build-social.mjs",
+    "story:build": "node scripts/build-story.mjs"
   },
   "dependencies": {
     "@fontsource-variable/figtree": "^5.2.0",

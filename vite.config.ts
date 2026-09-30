@@ -65,7 +65,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Il font ha file per ogni alfabeto; per l'italiano bastano latin e latin-ext.
-        globIgnores: ['**/*-cyrillic*', '**/*-vietnamese*', '**/*-greek*'],
+        globIgnores: ['**/*-cyrillic*', '**/*-vietnamese*', '**/*-greek*', 'story.png'],
         navigateFallback: '/app/index.html',
         navigateFallbackAllowlist: [/^\/app\//],
       },
