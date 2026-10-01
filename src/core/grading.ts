@@ -7,7 +7,8 @@ import type { ISODate } from './dates'
 import { type Activity, type Course, type GradeType, isMinor, type Period, type PlannedAssessment, type ProfclickData, type Topic, weeklyHours } from './model'
 
 export interface GradeEvent {
-  date: ISODate
+  /** null per una valutazione segnata come fatta dal programma, senza lezione. */
+  date: ISODate | null
   activity: Activity
   type: GradeType
   weight: number
@@ -17,7 +18,7 @@ export interface GradeEvent {
 export interface PeriodGrades {
   /** Voti pieni richiesti nel periodo. */
   target: number
-  /** Valutazioni piene in calendario (fatte o no), escluse le prosecuzioni. */
+  /** Valutazioni piene in calendario (fatte o no) o spuntate nel programma, escluse le prosecuzioni. */
   full: GradeEvent[]
   minor: GradeEvent[]
   done: number
@@ -40,11 +41,20 @@ export function targetGrades(course: Course): number {
   return course.rules.perPeriod ?? Math.max(weeklyHours(course), course.rules.required.length)
 }
 
+/** Le valutazioni previste già messe in calendario, con la lezione in cui cadono. */
+export function placedAssessments(data: ProfclickData, courseId: string): Map<string, { date: ISODate; done: boolean }> {
+  const placed = new Map<string, { date: ISODate; done: boolean }>()
+  for (const lesson of Object.values(data.lessons)) {
+    if (lesson.courseId !== courseId || lesson.cancelled) continue
+    for (const a of lesson.activities) if (a.assessment?.plannedId) placed.set(a.assessment.plannedId, { date: lesson.date, done: lesson.done })
+  }
+  return placed
+}
+
 export function periodGrades(data: ProfclickData, course: Course, period: Period, today: ISODate): PeriodGrades {
   const slots = periodSlots(data, course, period).filter(isAvailable)
   const full: GradeEvent[] = []
   const minor: GradeEvent[] = []
-  const placed = new Set<string>()
   const civics = { target: course.civics[period.id] ?? 0, planned: 0, done: 0 }
 
   for (const slot of slots) {
@@ -57,24 +67,32 @@ export function periodGrades(data: ProfclickData, course: Course, period: Period
       }
       const a = activity.assessment
       if (activity.kind !== 'verifica' || !a) continue
-      if (a.plannedId) placed.add(a.plannedId)
       if (a.continues) continue
       const event = { date: slot.date, activity, type: a.type, weight: a.weight, done: slot.lesson?.done ?? false }
       ;(isMinor(a) ? minor : full).push(event)
     }
   }
 
-  // Valutazioni previste nel programma di questo periodo e non ancora messe in calendario
-  // in nessun periodo (una verifica slittata al periodo dopo resta collocata).
-  const placedAnywhere = new Set(placed)
-  for (const lesson of Object.values(data.lessons)) {
-    if (lesson.courseId !== course.id) continue
-    for (const a of lesson.activities) if (a.assessment?.plannedId) placedAnywhere.add(a.assessment.plannedId)
-  }
-  const unplaced = Object.values(data.topics)
-    .filter((t) => t.courseId === course.id && t.periodId === period.id && !t.completed)
+  // Le valutazioni previste nel programma di questo periodo e non messe in calendario in
+  // nessun periodo (una verifica slittata al periodo dopo resta collocata): quelle spuntate
+  // come fatte contano, senza data; le altre sono ancora da collocare.
+  const placed = placedAssessments(data, course.id)
+  const unplaced: PeriodGrades['unplaced'] = []
+  const periodTopics = Object.values(data.topics)
+    .filter((t) => t.courseId === course.id && t.periodId === period.id)
     .sort((a, b) => a.order - b.order)
-    .flatMap((topic) => topic.assessments.filter((p) => !placedAnywhere.has(p.id)).map((planned) => ({ topic, planned })))
+  for (const topic of periodTopics) {
+    for (const planned of topic.assessments) {
+      if (placed.has(planned.id)) continue
+      if (!planned.done) {
+        unplaced.push({ topic, planned })
+        continue
+      }
+      const assessment = { type: planned.type, weight: planned.weight, continues: false, plannedId: planned.id }
+      const activity: Activity = { id: planned.id, kind: 'verifica', topicIds: [topic.id], text: planned.text, assessment }
+      ;(isMinor(planned) ? minor : full).push({ date: null, activity, type: planned.type, weight: planned.weight, done: true })
+    }
+  }
 
   const target = targetGrades(course)
   const upcoming = slots.filter((s) => s.date >= today && !s.lesson?.done)

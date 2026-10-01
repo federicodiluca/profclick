@@ -17,11 +17,14 @@ come app (PWA). Le decisioni di progetto sono in [docs/decisions](docs/decisions
 - **Classi**: l'orario con i giorni, oppure solo le lezioni della settimana in ordine con le
   loro ore; le ore in laboratorio o con l'ITP. Regola dei voti: di default uno per ogni ora
   settimanale, con almeno uno scritto, un orale e un pratico; ore di educazione civica.
+- **Orario che cambia**: il nuovo orario vale da una data; le lezioni prima restano nei loro
+  giorni, il piano da lì passa sui nuovi giorni nello stesso ordine.
 - **Programma**: si incolla da una nota di Keep o da un documento. Capisce un elenco di
   argomenti, l'elenco dei voti ("1️⃣ Reti (scritto)", "✳️ Flipped classroom (orale, 30%)") e la
   lista dei prossimi passi ("⚠️ Scritto", "⬅️" dove sei arrivato).
 - **Valutazioni previste** per argomento, con il loro peso; la proposta le mette in
-  calendario, le prove pratiche nelle ore con l'ITP.
+  calendario, le prove pratiche nelle ore con l'ITP. Argomenti e valutazioni già svolti si spuntano
+  con un tocco, senza ricostruire le lezioni passate.
 - **Da preparare**: slide, esercizi, laboratori, legati all'argomento; la settimana mostra
   quello che serve a breve.
 - **Calendario**: "Aggiungi a Google Calendar" per ogni verifica, o un file .ics con tutte.

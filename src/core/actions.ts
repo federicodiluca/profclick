@@ -2,7 +2,7 @@
 // nuovo. Ogni record toccato riceve un updatedAt nuovo, che serve all'unione tra dispositivi.
 
 import { courseSlots, isAvailable } from './calendar'
-import type { ISODate } from './dates'
+import { addDays, type ISODate } from './dates'
 import { tombstone } from './merge'
 import {
   type Activity,
@@ -10,7 +10,11 @@ import {
   type Course,
   type Lesson,
   lessonKey,
+  type PastSchedule,
   type ProfclickData,
+  sameSchedule,
+  scheduleAt,
+  type ScheduleSlot,
   type SchoolYear,
   type Stamped,
   type Topic,
@@ -54,6 +58,57 @@ export function saveCourse(course: Omit<Course, 'updatedAt'>): Change {
   return (data) => put(data, 'courses', course.id, { ...course, updatedAt: 0 })
 }
 
+/**
+ * Un nuovo orario da una data in poi (ADR 0010). Prima di quella data resta l'orario di
+ * prima, così le lezioni passate non cambiano giorno. Il piano da quella data passa sulle
+ * nuove lezioni nello stesso ordine: la prima lezione col nuovo orario fa quello che faceva
+ * la prima col vecchio, e così via. Le lezioni annullate restano nel loro giorno, se c'è
+ * ancora. Una data all'inizio dell'anno, o prima, corregge l'orario per tutto l'anno.
+ */
+export function changeSchedule(courseId: string, schedule: ScheduleSlot[], from: ISODate): Change {
+  return (data) => {
+    const course = data.courses[courseId]
+    if (!course || !data.year) return data
+
+    let pastSchedules: PastSchedule[] = []
+    if (from > data.year.start) {
+      const until = addDays(from, -1)
+      pastSchedules = [...course.pastSchedules.filter((p) => p.until < until), { until, schedule: scheduleAt(course, until) }]
+    }
+    // Due orari uguali di seguito sono uno solo.
+    pastSchedules = pastSchedules.filter((p, i) => !sameSchedule(p.schedule, pastSchedules[i + 1]?.schedule ?? schedule))
+    const updated = { ...course, schedule, pastSchedules }
+
+    const before = courseSlots(data, course, from)
+    let next = put(data, 'courses', courseId, updated)
+    const after = courseSlots(next, updated, from)
+
+    const cancelled = new Map(before.filter((s) => s.lesson?.cancelled).map((s) => [s.date, s.lesson!]))
+    const moving = before.filter((s) => !s.lesson?.cancelled).map((s) => s.lesson)
+    const target = new Map<ISODate, Lesson>()
+    let i = 0
+    for (const slot of after) {
+      const lesson = cancelled.get(slot.date) ?? moving[i++]
+      if (lesson) target.set(slot.date, lesson.date === slot.date ? lesson : { ...lesson, date: slot.date })
+    }
+    // Con meno lezioni di prima, quello che esce dall'anno finisce nell'ultima, per non perderlo.
+    const left = moving.slice(i).flatMap((l) => l?.activities ?? [])
+    const last = after.filter((s) => !target.get(s.date)?.cancelled).at(-1)
+    if (left.length > 0 && last) {
+      const lesson = target.get(last.date) ?? emptyLesson(courseId, last.date)
+      target.set(last.date, { ...lesson, activities: [...lesson.activities, ...left] })
+    }
+
+    const stale = Object.keys(next.lessons).filter((k) => {
+      const l = next.lessons[k]
+      return l.courseId === courseId && l.date >= from && !target.has(l.date)
+    })
+    next = remove(next, 'lessons', stale)
+    for (const lesson of target.values()) if (next.lessons[lessonKey(courseId, lesson.date)] !== lesson) next = writeLesson(next, lesson)
+    return next
+  }
+}
+
 export function deleteCourse(courseId: string): Change {
   return (data) => {
     let next = remove(data, 'courses', [courseId])
@@ -70,6 +125,23 @@ export function saveTopic(topic: Omit<Topic, 'updatedAt'>): Change {
 
 export function saveTopics(topics: Omit<Topic, 'updatedAt'>[]): Change {
   return (data) => topics.reduce((d, t) => saveTopic(t)(d), data)
+}
+
+/** Argomento concluso a mano, senza lezioni in calendario (es. svolto prima di usare ProfClick). */
+export function setTopicCompleted(topicId: string, completed: boolean): Change {
+  return (data) => {
+    const topic = data.topics[topicId]
+    return topic ? put(data, 'topics', topicId, { ...topic, completed }) : data
+  }
+}
+
+/** Valutazione prevista segnata come fatta, senza metterla in calendario. */
+export function setAssessmentDone(topicId: string, assessmentId: string, done: boolean): Change {
+  return (data) => {
+    const topic = data.topics[topicId]
+    if (!topic) return data
+    return put(data, 'topics', topicId, { ...topic, assessments: topic.assessments.map((a) => (a.id === assessmentId ? { ...a, done } : a)) })
+  }
 }
 
 export function deleteTopic(topicId: string): Change {

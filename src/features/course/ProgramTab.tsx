@@ -6,8 +6,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { deleteTopic, moveTopic, saveCourse, saveTopic, saveTopics } from '@/core/actions'
-import { formatShort } from '@/core/dates'
+import { deleteTopic, moveTopic, saveCourse, saveTopic, saveTopics, setAssessmentDone, setTopicCompleted } from '@/core/actions'
+import { formatShort, type ISODate } from '@/core/dates'
+import { placedAssessments } from '@/core/grading'
 import { type ParsedTopic, parseProgram } from '@/core/importText'
 import { assessmentLabel, type Course, GRADE_LABELS, type GradeType, isMinor, type PlannedAssessment, type PrepItem, type Topic } from '@/core/model'
 import { courseTopics, type TopicProgress, topicProgress } from '@/core/progress'
@@ -28,10 +29,11 @@ const STATUS_LABELS: Record<TopicProgress['status'], string> = {
 const DEFAULT_HOURS = 8
 
 export function ProgramTab({ course }: { course: Course }) {
-  const { data, applyWithUndo } = useData()
+  const { data, apply, applyWithUndo } = useData()
   const [editing, setEditing] = useState<Topic | 'new' | null>(null)
   const [importing, setImporting] = useState(false)
   const progress = topicProgress(data, course)
+  const placed = placedAssessments(data, course.id)
   const periods = data.year!.periods
   const totals = periods.map((p) => ({ period: p, hours: progress.filter((x) => x.topic.periodId === p.id).reduce((s, x) => s + x.topic.hours, 0) }))
 
@@ -62,25 +64,53 @@ export function ProgramTab({ course }: { course: Course }) {
           return (
             <li key={p.topic.id} className="rounded-xl border bg-card p-3">
               <div className="flex items-start gap-3">
-                <span
+                {/* Si spunta a mano un argomento svolto senza lezioni in calendario; se è fatto per le ore, resta fatto. */}
+                <button
+                  type="button"
+                  aria-pressed={p.status === 'fatto'}
+                  aria-label={p.topic.completed ? `Togli fatto da ${p.topic.title}` : `Segna fatto ${p.topic.title}`}
+                  title={p.status === 'fatto' && !p.topic.completed ? 'Fatto: le sue ore sono tutte svolte' : p.topic.completed ? 'Togli fatto' : 'Segna come fatto'}
+                  disabled={p.status === 'fatto' && !p.topic.completed}
+                  onClick={() => apply(setTopicCompleted(p.topic.id, !p.topic.completed))}
                   className={cn(
-                    'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold',
-                    p.status === 'fatto' ? 'bg-done text-background' : 'bg-muted',
+                    'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold transition-colors',
+                    p.status === 'fatto' ? 'bg-done text-background' : 'bg-muted hover:bg-done/20 hover:text-done',
                   )}
                 >
                   {p.status === 'fatto' ? <DoneIcon className="size-4" /> : i + 1}
-                </span>
-                <button type="button" className="min-w-0 flex-1 space-y-1.5 text-left" onClick={() => setEditing(p.topic)}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                    <span className="font-medium">{p.topic.title}</span>
-                    <span className="text-xs text-muted-foreground">{periods.find((x) => x.id === p.topic.periodId)?.name ?? 'Periodo da decidere'}</span>
-                  </div>
-                  {p.topic.points.length > 0 && <p className="text-xs text-muted-foreground">{p.topic.points.join(' · ')}</p>}
+                </button>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <button type="button" className="w-full space-y-1.5 text-left" onClick={() => setEditing(p.topic)}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <span className="font-medium">{p.topic.title}</span>
+                      <span className="text-xs text-muted-foreground">{periods.find((x) => x.id === p.topic.periodId)?.name ?? 'Periodo da decidere'}</span>
+                    </div>
+                    {p.topic.points.length > 0 && <p className="text-xs text-muted-foreground">{p.topic.points.join(' · ')}</p>}
+                    {p.topic.hours > 0 && (
+                      <>
+                        <ProgressBar value={p.status === 'fatto' ? 1 : p.doneHours} max={p.status === 'fatto' ? 1 : p.topic.hours} />
+                        <p className="text-xs text-muted-foreground">
+                          {STATUS_LABELS[p.status]} · {formatHours(p.doneHours)} fatte, {formatHours(p.plannedHours)} in calendario su{' '}
+                          {formatHours(p.topic.hours)} stimate
+                          {p.firstDate && ` · ${formatShort(p.firstDate)} → ${formatShort(p.lastDate!)}`}
+                        </p>
+                      </>
+                    )}
+                  </button>
                   {(p.topic.assessments.length > 0 || prep > 0) && (
                     <div className="flex flex-wrap gap-1.5">
-                      {p.topic.assessments.map((a) => (
-                        <AssessmentChip key={a.id} assessment={a} />
-                      ))}
+                      {p.topic.assessments.map((a) => {
+                        const at = placed.get(a.id)
+                        return (
+                          <AssessmentChip
+                            key={a.id}
+                            assessment={a}
+                            at={at?.date}
+                            done={at ? at.done : a.done}
+                            onToggle={at ? undefined : () => apply(setAssessmentDone(p.topic.id, a.id, !a.done))}
+                          />
+                        )
+                      })}
                       {prep > 0 && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">
                           <PrepIcon className="size-3.5" /> {prep} da preparare
@@ -88,17 +118,7 @@ export function ProgramTab({ course }: { course: Course }) {
                       )}
                     </div>
                   )}
-                  {p.topic.hours > 0 && (
-                    <>
-                      <ProgressBar value={p.status === 'fatto' ? 1 : p.doneHours} max={p.status === 'fatto' ? 1 : p.topic.hours} />
-                      <p className="text-xs text-muted-foreground">
-                        {STATUS_LABELS[p.status]} · {formatHours(p.doneHours)} fatte, {formatHours(p.plannedHours)} in calendario su{' '}
-                        {formatHours(p.topic.hours)} stimate
-                        {p.firstDate && ` · ${formatShort(p.firstDate)} → ${formatShort(p.lastDate!)}`}
-                      </p>
-                    </>
-                  )}
-                </button>
+                </div>
                 <div className="flex shrink-0 flex-col">
                   <Button variant="ghost" size="icon-xs" aria-label="Sposta su" disabled={i === 0} onClick={() => applyWithUndo(moveTopic(p.topic.id, -1), 'Argomento spostato')}>
                     <ArrowUpIcon />
@@ -125,13 +145,39 @@ export function ProgramTab({ course }: { course: Course }) {
   )
 }
 
-function AssessmentChip({ assessment }: { assessment: Pick<PlannedAssessment, 'type' | 'weight' | 'text'> }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-pencil-red/30 px-2 py-0.5 text-xs text-pencil-red">
-      {createElement(isMinor(assessment) ? MinorGradeIcon : GRADE_ICONS[assessment.type], { className: 'size-3.5' })}
+/**
+ * Una valutazione prevista. Se non è in calendario si spunta qui come fatta; se è in
+ * calendario mostra la data, e si segna fatta dalla sua lezione.
+ */
+function AssessmentChip({
+  assessment,
+  at,
+  done = false,
+  onToggle,
+}: {
+  assessment: Pick<PlannedAssessment, 'type' | 'weight' | 'text'>
+  at?: ISODate
+  done?: boolean
+  onToggle?: () => void
+}) {
+  const className = cn(
+    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
+    done ? 'border-done/40 bg-done/10 text-done' : 'border-pencil-red/30 text-pencil-red',
+    onToggle && !done && 'hover:border-done/50 hover:text-done',
+  )
+  const content = (
+    <>
+      {createElement(done ? DoneIcon : isMinor(assessment) ? MinorGradeIcon : GRADE_ICONS[assessment.type], { className: 'size-3.5' })}
       {assessmentLabel(assessment)}
       {assessment.text && <span className="opacity-75">· {assessment.text}</span>}
-    </span>
+      {at && <span className="opacity-75">· {formatShort(at)}</span>}
+    </>
+  )
+  if (!onToggle) return <span className={className}>{content}</span>
+  return (
+    <button type="button" aria-pressed={done} title={done ? 'Togli fatta' : 'Segna come fatta'} onClick={onToggle} className={className}>
+      {content}
+    </button>
   )
 }
 
@@ -156,6 +202,7 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
   const [assessments, setAssessments] = useState<PlannedAssessment[]>(topic?.assessments ?? [])
   const [prep, setPrep] = useState<PrepItem[]>(course.prep.filter((p) => p.topicId === id))
   const [completed, setCompleted] = useState(topic?.completed ?? false)
+  const placed = placedAssessments(data, course.id)
 
   const setAssessment = (i: number, patch: Partial<PlannedAssessment>) => setAssessments(assessments.map((a, j) => (j === i ? { ...a, ...patch } : a)))
 
@@ -236,6 +283,13 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
               />
             )}
             <Input value={a.text} onChange={(e) => setAssessment(i, { text: e.target.value })} placeholder="con orale, prova parallela…" className="h-7 min-w-32 flex-1" />
+            {placed.has(a.id) ? (
+              <span className="text-xs text-muted-foreground">in calendario {formatShort(placed.get(a.id)!.date)}</span>
+            ) : (
+              <Toggle on={a.done} onClick={() => setAssessment(i, { done: !a.done })}>
+                Fatta
+              </Toggle>
+            )}
             <Button type="button" variant="ghost" size="icon-sm" aria-label="Togli valutazione" onClick={() => setAssessments(assessments.filter((_, j) => j !== i))}>
               <TrashIcon />
             </Button>
@@ -246,7 +300,7 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
           variant="outline"
           size="sm"
           className="justify-self-start"
-          onClick={() => setAssessments([...assessments, { id: newId(), type: assessments.at(-1)?.type === 'scritto' ? 'pratico' : 'scritto', weight: 100, text: '' }])}
+          onClick={() => setAssessments([...assessments, { id: newId(), type: assessments.at(-1)?.type === 'scritto' ? 'pratico' : 'scritto', weight: 100, text: '', done: false }])}
         >
           <PlusIcon /> Valutazione
         </Button>
@@ -336,7 +390,7 @@ function ImportDialog({ course, open, onClose }: { course: Course; open: boolean
     hours: t.hours ?? DEFAULT_HOURS,
     points: t.points,
     periodId: periods[periodIndex[i]].id,
-    assessments: t.assessments.map((a) => ({ id: newId(), type: a.type, weight: a.weight ?? (a.minor ? course.rules.minorWeight : 100), text: a.text })),
+    assessments: t.assessments.map((a) => ({ id: newId(), type: a.type, weight: a.weight ?? (a.minor ? course.rules.minorWeight : 100), text: a.text, done: t.completed })),
     completed: t.completed,
     order: existing.length + i,
   })

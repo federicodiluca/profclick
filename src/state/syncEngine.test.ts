@@ -32,6 +32,7 @@ const course = (id: string) => ({
   subject: '',
   color: 0,
   schedule: [],
+  pastSchedules: [],
   civics: {},
   prep: [],
   rules: { perPeriod: null, required: [], minorWeight: 50 },

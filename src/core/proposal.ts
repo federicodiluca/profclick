@@ -84,8 +84,9 @@ export function proposePlan(data: ProfclickData, course: Course, period: Period,
   // Il programma del periodo in sequenza: ore di spiegazione, poi le valutazioni previste.
   const queue: QueueItem[] = []
   for (const topic of courseTopics(data, course.id)) {
-    if (topic.completed || (topic.periodId !== period.id && topic.periodId !== null)) continue
-    const left = Math.max(0, topic.hours - (progress.get(topic.id)?.plannedHours ?? 0))
+    if (topic.periodId !== period.id && topic.periodId !== null) continue
+    // Un argomento concluso non si spiega più, ma le sue valutazioni non fatte restano da mettere.
+    const left = topic.completed ? 0 : Math.max(0, topic.hours - (progress.get(topic.id)?.plannedHours ?? 0))
     if (left > 0) queue.push({ kind: 'teach', topic, left })
     for (const planned of topic.assessments) if (unplaced.has(planned.id)) queue.push({ kind: 'assess', topic, planned })
   }

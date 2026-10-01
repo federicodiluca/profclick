@@ -15,3 +15,4 @@ Una decisione superata non si cancella: si scrive un nuovo ADR che la sostituisc
 | [0007](0007-seo.md) | Pagina pubblica indicizzabile sul sottodominio, app sotto /app/ | Accettata |
 | [0008](0008-orario-flessibile.md) | Orario con i giorni, o solo le lezioni in ordine; ore con ITP | Accettata |
 | [0009](0009-calendario-e-preparazione.md) | Verifiche sul calendario senza permessi; materiale da preparare | Accettata |
+| [0010](0010-orario-che-cambia.md) | Orario che cambia da una data; argomenti e voti spuntati senza lezione | Accettata |

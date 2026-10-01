@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { saveCourse } from '@/core/actions'
-import { weekdayName } from '@/core/dates'
+import { changeSchedule, saveCourse } from '@/core/actions'
+import { formatDay, type ISODate, startOfWeek, today, weekdayName } from '@/core/dates'
 import { targetGrades } from '@/core/grading'
-import { type Course, GRADE_LABELS, GRADE_TYPES, type GradeType, type ScheduleSlot, weeklyHours } from '@/core/model'
+import { type Course, GRADE_LABELS, GRADE_TYPES, type GradeType, sameSchedule, type ScheduleSlot, weeklyHours } from '@/core/model'
 import { newId } from '@/lib/id'
 import { COURSE_COLORS, courseColor } from '@/lib/ui'
 import { cn } from '@/lib/utils'
@@ -26,6 +26,7 @@ function blank(order: number, color: number, minorWeight: number): Draft {
     subject: '',
     color,
     schedule: [],
+    pastSchedules: [],
     rules: { perPeriod: null, required: [...GRADE_TYPES], minorWeight },
     civics: {},
     prep: [],
@@ -38,6 +39,11 @@ function blank(order: number, color: number, minorWeight: number): Draft {
 function convert(schedule: ScheduleSlot[], to: ScheduleMode): ScheduleSlot[] {
   if (to === 'lezioni') return [...schedule].sort((a, b) => (a.day ?? 9) - (b.day ?? 9)).map((s) => ({ ...s, day: null }))
   return schedule.slice(0, 6).map((s, i) => ({ ...s, day: i + 1 }))
+}
+
+/** "lun 2 h · mer 1 h ITP", o "2 h · 1 h ITP" per le lezioni senza giorno. */
+function describeSchedule(schedule: ScheduleSlot[]): string {
+  return schedule.map((s) => `${s.day ? `${weekdayName(s.day, true)} ` : ''}${s.hours} h${s.lab ? ' ITP' : ''}`).join(' · ')
 }
 
 export function CourseDialog({
@@ -62,7 +68,8 @@ export function CourseDialog({
 }
 
 function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: () => void; onSaved?: (id: string) => void }) {
-  const { data, apply } = useData()
+  const { data, apply, applyWithUndo } = useData()
+  const year = data.year
   const existing = Object.values(data.courses)
   const periods = data.year?.periods ?? []
   // Chi insegna più classi ritrova le sue abitudini: materia e peso dei voti minori dell'ultima.
@@ -84,13 +91,25 @@ function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: ()
   }
   const setLesson = (i: number, patch: Partial<ScheduleSlot>) => set({ schedule: draft.schedule.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
 
+  // A anno iniziato, un orario nuovo vale da una data: prima le lezioni restano nei loro giorni.
+  const thisWeek: ISODate = year && startOfWeek(today()) > year.start ? startOfWeek(today()) : (year?.start ?? today())
+  const [from, setFrom] = useState(thisWeek)
+  const scheduleChanged = Boolean(course) && !sameSchedule(course!.schedule, draft.schedule)
+  const askFrom = scheduleChanged && year !== null && today() > year.start
+  const fromStart = year !== null && from <= year.start
+
   const asCourse = { ...draft, updatedAt: 0 }
   const autoTarget = targetGrades({ ...asCourse, rules: { ...draft.rules, perPeriod: null } })
   const valid = draft.className.trim() !== '' && weeklyHours(asCourse) > 0
 
   const save = () => {
     const subject = draft.subject.trim() || (course ? '' : (last?.subject ?? ''))
-    apply(saveCourse({ ...draft, className: draft.className.trim(), subject, schedule: draft.schedule.filter((s) => s.hours > 0) }))
+    const saved = { ...draft, className: draft.className.trim(), subject, schedule: draft.schedule.filter((s) => s.hours > 0) }
+    if (course && scheduleChanged && year) {
+      // Il resto si salva com'è; l'orario passa da changeSchedule, che sposta anche il piano.
+      const rest = saveCourse({ ...saved, schedule: course.schedule, pastSchedules: course.pastSchedules })
+      applyWithUndo((d) => changeSchedule(course.id, saved.schedule, askFrom ? from : year.start)(rest(d)), 'Orario cambiato: il piano è passato sui nuovi giorni')
+    } else apply(saveCourse(saved))
     onSaved?.(draft.id)
     onClose()
   }
@@ -222,6 +241,43 @@ function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: ()
         <p className="text-xs text-muted-foreground">
           {weeklyHours(asCourse)} ore a settimana. <strong>ITP</strong>: ore in laboratorio o in compresenza, dove vanno le prove pratiche.
         </p>
+
+        {askFrom && (
+          <div className="grid gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+            <Label htmlFor="schedule-from">Il nuovo orario vale dal</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                id="schedule-from"
+                type="date"
+                min={year.start}
+                max={year.end}
+                value={fromStart ? year.start : from}
+                onChange={(e) => e.target.value && setFrom(e.target.value)}
+                className="h-8 w-44"
+              />
+              <Toggle on={fromStart} onClick={() => setFrom(fromStart ? thisWeek : year.start)}>
+                Dall'inizio dell'anno
+              </Toggle>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {fromStart
+                ? "L'orario si corregge per tutto l'anno: anche le lezioni già passate vanno sui nuovi giorni."
+                : 'Le lezioni prima di questa data restano nei loro giorni. Da qui in poi il piano passa sui nuovi giorni, nello stesso ordine, comprese quelle già fatte: va bene anche una data passata.'}
+            </p>
+          </div>
+        )}
+        {course && course.pastSchedules.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            <span className="font-medium">Orari precedenti</span>
+            <ul>
+              {course.pastSchedules.map((p) => (
+                <li key={p.until}>
+                  fino al {formatDay(p.until)}: {describeSchedule(p.schedule)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <fieldset className="grid gap-3 rounded-lg border p-3">

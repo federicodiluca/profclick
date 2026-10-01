@@ -66,7 +66,7 @@ export function GradesTab({ course }: { course: Course }) {
             </div>
             <ul className="divide-y rounded-xl border">
               {[...g.full, ...g.minor]
-                .sort((a, b) => (a.date < b.date ? -1 : 1))
+                .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
                 .map((e) => (
                   <GradeRow key={e.activity.id} event={e} />
                 ))}
@@ -105,7 +105,7 @@ function GradeRow({ event }: { event: GradeEvent }) {
   const detail = [topics.join(', '), event.activity.text].filter(Boolean).join(' · ')
   return (
     <li className="flex items-start gap-3 px-3 py-2 text-sm">
-      <span className="w-24 shrink-0 text-muted-foreground tabular-nums">{formatShort(event.date)}</span>
+      <span className="w-24 shrink-0 text-muted-foreground tabular-nums">{event.date ? formatShort(event.date) : 'già fatto'}</span>
       {createElement(isMinor(event) ? MinorGradeIcon : GRADE_ICONS[event.type], { className: 'mt-0.5 size-4 shrink-0 text-pencil-red' })}
       <span className="min-w-0 flex-1">
         <span className="font-medium">{assessmentLabel(event)}</span>

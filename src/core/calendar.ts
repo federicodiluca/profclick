@@ -1,13 +1,14 @@
 // I giorni di lezione di una classe, ricavati dall'orario settimanale e dal calendario
 // scolastico. Non si salvano: cambiando l'orario o aggiungendo un ponte, le lezioni si
-// ricalcolano da sole.
+// ricalcolano da sole. Ogni giorno segue l'orario in vigore quel giorno (scheduleAt): un
+// cambio d'orario non sposta le lezioni già passate.
 //
 // Le lezioni senza giorno (ADR 0008) si mettono nei giorni liberi della settimana, in
 // ordine: la prima il lunedì, la seconda il martedì, … Il giorno è solo un segnaposto (non
 // si mostra), ma così una festività in settimana toglie una lezione, come succede davvero.
 
 import { addDays, eachDay, inRange, startOfWeek, weekday, type ISODate } from './dates'
-import { type Course, type Lesson, lessonKey, type Period, type ProfclickData, type SchoolYear } from './model'
+import { type Course, type Lesson, lessonKey, type Period, type ProfclickData, scheduleAt, type ScheduleSlot, type SchoolYear } from './model'
 
 export interface LessonSlot {
   courseId: string
@@ -30,17 +31,17 @@ interface DaySlot {
   index: number
 }
 
-/** La settimana tipo di una classe, giorno per giorno. */
-export function weekPattern(course: Course): Map<number, DaySlot> {
+/** La settimana tipo di un orario, giorno per giorno. */
+export function weekPattern(schedule: ScheduleSlot[]): Map<number, DaySlot> {
   const pattern = new Map<number, DaySlot>()
   // Più lezioni nello stesso giorno diventano una sola, con le ore sommate.
-  for (const slot of course.schedule) {
+  for (const slot of schedule) {
     if (slot.day === null || slot.hours <= 0) continue
     const current = pattern.get(slot.day)
     pattern.set(slot.day, { hours: (current?.hours ?? 0) + slot.hours, lab: Boolean(current?.lab) || slot.lab, floating: false, index: 0 })
   }
   let day = 1
-  for (const slot of course.schedule) {
+  for (const slot of schedule) {
     if (slot.day !== null || slot.hours <= 0) continue
     while (pattern.has(day) && day < 6) day++
     const current = pattern.get(day)
@@ -52,7 +53,7 @@ export function weekPattern(course: Course): Map<number, DaySlot> {
 }
 
 export function hasFloatingLessons(course: Course): boolean {
-  return course.schedule.some((s) => s.day === null && s.hours > 0)
+  return [course.schedule, ...course.pastSchedules.map((p) => p.schedule)].some((schedule) => schedule.some((s) => s.day === null && s.hours > 0))
 }
 
 export function holidayOn(year: SchoolYear, date: ISODate) {
@@ -77,9 +78,11 @@ export function courseSlots(data: ProfclickData, course: Course, from?: ISODate,
   if (!year) return []
   const start = from && from > year.start ? from : year.start
   const end = to && to < year.end ? to : year.end
-  const pattern = weekPattern(course)
+  const patterns = new Map<ScheduleSlot[], Map<number, DaySlot>>()
   const slots: LessonSlot[] = []
   for (const date of eachDay(start, end)) {
+    const schedule = scheduleAt(course, date)
+    const pattern = patterns.get(schedule) ?? patterns.set(schedule, weekPattern(schedule)).get(schedule)!
     const day = pattern.get(weekday(date))
     if (!day || holidayOn(year, date)) continue
     slots.push({ courseId: course.id, date, ...day, lesson: data.lessons[lessonKey(course.id, date)] })

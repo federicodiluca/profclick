@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, cancelAndShift, deleteCourse, saveCourse, saveTopics, setDone, setYear, undoTo } from './actions'
+import { addActivity, cancelAndShift, changeSchedule, deleteCourse, saveCourse, saveTopics, setDone, setYear, undoTo } from './actions'
 import { courseSlots, floatingSlotsOfWeek } from './calendar'
 import { easter, startOfWeek, weekday } from './dates'
 import { periodGrades, targetGrades } from './grading'
@@ -21,6 +21,7 @@ const course: Omit<Course, 'updatedAt'> = {
     { day: 3, hours: 1, lab: false },
     { day: 5, hours: 2, lab: true },
   ],
+  pastSchedules: [],
   rules: { perPeriod: null, required: ['scritto', 'teorico', 'pratico'], minorWeight: 50 },
   civics: {},
   prep: [],
@@ -164,8 +165,8 @@ describe('proposta di piano', () => {
   it('usa le valutazioni previste per argomento, il pratico in laboratorio', () => {
     let data = base()
     data = saveTopics([
-      topic('t1', 'Algoritmi', 4, { assessments: [{ id: 'v1', type: 'pratico', weight: 100, text: 'Flowgorithm' }] }),
-      topic('t2', 'Array', 4, { assessments: [{ id: 'v2', type: 'teorico', weight: 30, text: 'flipped' }] }),
+      topic('t1', 'Algoritmi', 4, { assessments: [{ id: 'v1', type: 'pratico', weight: 100, text: 'Flowgorithm', done: false }] }),
+      topic('t2', 'Array', 4, { assessments: [{ id: 'v2', type: 'teorico', weight: 30, text: 'flipped', done: false }] }),
     ])(data)
     const p = proposePlan(data, data.courses.c1, data.year!.periods[0], '2026-09-29')
     const pratico = p.lessons.find((l) => l.activity.assessment?.plannedId === 'v1')!
@@ -214,6 +215,66 @@ describe('lezione persa', () => {
     expect(data.lessons[lessonKey('c1', '2026-10-07')].activities[0].id).toBe('a')
     expect(data.lessons[lessonKey('c1', '2026-10-09')].activities[0].id).toBe('b')
     expect(data.lessons[lessonKey('c1', '2026-10-12')].activities[0].id).toBe('c')
+  })
+})
+
+describe('cambio di orario', () => {
+  const spiegazione = (id: string) => ({ id, kind: 'spiegazione' as const, topicIds: ['t1'], text: '' })
+  const tueThu = [
+    { day: 2, hours: 2, lab: false },
+    { day: 4, hours: 3, lab: true },
+  ]
+
+  it('le lezioni passate restano, il piano passa sui nuovi giorni in ordine', () => {
+    let data = base()
+    data = setDone('c1', '2026-09-28', true)(addActivity('c1', '2026-09-28', spiegazione('old'))(data))
+    data = addActivity('c1', '2026-10-05', spiegazione('a'))(data)
+    data = addActivity('c1', '2026-10-07', spiegazione('b'))(data)
+    data = addActivity('c1', '2026-10-09', spiegazione('c'))(data)
+    data = changeSchedule('c1', tueThu, '2026-10-05')(data)
+
+    const c = data.courses.c1
+    expect(c.pastSchedules).toEqual([{ until: '2026-10-04', schedule: course.schedule }])
+    expect(courseSlots(data, c, '2026-09-28', '2026-10-04').map((s) => s.date)).toEqual(['2026-09-28', '2026-09-30', '2026-10-02'])
+    expect(data.lessons[lessonKey('c1', '2026-09-28')].activities[0].id).toBe('old')
+    expect(courseSlots(data, c, '2026-10-05', '2026-10-13').map((s) => [s.date, s.lesson?.activities[0]?.id])).toEqual([
+      ['2026-10-06', 'a'],
+      ['2026-10-08', 'b'],
+      ['2026-10-13', 'c'],
+    ])
+    expect(data.lessons[lessonKey('c1', '2026-10-05')]).toBeUndefined()
+  })
+
+  it("dall'inizio dell'anno corregge tutto, e due orari uguali di seguito sono uno", () => {
+    let data = changeSchedule('c1', tueThu, '2026-10-05')(base())
+    data = changeSchedule('c1', tueThu, '2026-09-21')(data)
+    expect(data.courses.c1.pastSchedules.map((p) => p.until)).toEqual(['2026-09-20'])
+    data = changeSchedule('c1', course.schedule, data.year!.start)(data)
+    expect(data.courses.c1.pastSchedules).toEqual([])
+  })
+})
+
+describe('spuntato nel programma', () => {
+  it('una valutazione fatta senza lezione conta; quelle degli argomenti conclusi restano da collocare', () => {
+    let data = base()
+    data = saveTopics([
+      topic('t1', 'Algoritmi', 4, { assessments: [{ id: 'v1', type: 'scritto', weight: 100, text: '', done: true }] }),
+      topic('t2', 'Array', 4, { completed: true, assessments: [{ id: 'v2', type: 'pratico', weight: 100, text: '', done: false }] }),
+    ])(data)
+    const g = periodGrades(data, data.courses.c1, data.year!.periods[0], '2026-09-29')
+    expect(g.full.map((e) => [e.date, e.type, e.done])).toEqual([[null, 'scritto', true]])
+    expect(g.done).toBe(1)
+    expect(g.missingTypes).not.toContain('scritto')
+    expect(g.unplaced.map((u) => u.planned.id)).toEqual(['v2'])
+    const p = proposePlan(data, data.courses.c1, data.year!.periods[0], '2026-09-29')
+    expect(p.lessons.some((l) => l.activity.assessment?.plannedId === 'v2')).toBe(true)
+    expect(p.lessons.some((l) => l.activity.kind === 'spiegazione' && l.activity.topicIds.includes('t2'))).toBe(false)
+  })
+
+  it('nei dati di prima, le valutazioni di un argomento concluso sono fatte', () => {
+    const data = normalizeData({ topics: { t: { id: 't', completed: true, assessments: [{ id: 'v', type: 'scritto', weight: 100, text: '' }] } } })
+    expect(data.topics.t.assessments[0].done).toBe(true)
+    expect(normalizeData({ courses: { c: { id: 'c', schedule: [] } } }).courses.c.pastSchedules).toEqual([])
   })
 })
 

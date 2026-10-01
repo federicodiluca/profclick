@@ -64,6 +64,13 @@ export interface ScheduleSlot {
   lab: boolean
 }
 
+/** Un orario che valeva fino a un certo giorno: nelle prime settimane l'orario cambia spesso. */
+export interface PastSchedule {
+  /** Ultimo giorno in cui valeva. */
+  until: ISODate
+  schedule: ScheduleSlot[]
+}
+
 /** Qualcosa da preparare: slide, esercizi, un laboratorio. */
 export interface PrepItem {
   id: string
@@ -80,7 +87,10 @@ export interface Course extends Stamped {
   subject: string
   /** Indice nella tavolozza dei colori delle classi. */
   color: number
+  /** L'orario in vigore, dal giorno dopo l'ultimo degli orari precedenti. */
   schedule: ScheduleSlot[]
+  /** Gli orari precedenti, in ordine di data: le lezioni passate restano nei loro giorni. */
+  pastSchedules: PastSchedule[]
   rules: GradeRules
   /** Ore di educazione civica da svolgere, per periodo. */
   civics: Record<string, number>
@@ -98,6 +108,8 @@ export interface PlannedAssessment {
   weight: number
   /** "con orale", "prova parallela", "flipped classroom"… */
   text: string
+  /** Segnata come fatta a mano, senza una lezione in calendario (es. prima di usare ProfClick). */
+  done: boolean
 }
 
 /** Un macro-argomento del programma. */
@@ -204,14 +216,17 @@ function normalizeCourse(c: Loose<Course>): Course {
   return {
     ...(c as Course),
     schedule: normalizeSchedule(c.schedule),
+    pastSchedules: (c.pastSchedules ?? []).map((p) => ({ until: p.until, schedule: normalizeSchedule(p.schedule) })),
     civics: c.civics ?? {},
     prep: c.prep ?? [],
     notes: c.notes ?? '',
   }
 }
 
+/** Prima di poter spuntare le valutazioni, un argomento concluso non ne aveva più da fare. */
 function normalizeTopic(t: Loose<Topic>): Topic {
-  return { ...(t as Topic), points: t.points ?? [], assessments: t.assessments ?? [] }
+  const assessments = (t.assessments ?? []).map((a) => ({ ...a, done: a.done ?? Boolean(t.completed) }))
+  return { ...(t as Topic), points: t.points ?? [], assessments }
 }
 
 /** Le prime versioni avevano minor: boolean al posto del peso. */
@@ -288,4 +303,14 @@ export function courseLabel(course: Course): string {
 
 export function weeklyHours(course: Course): number {
   return course.schedule.reduce((sum, s) => sum + s.hours, 0)
+}
+
+/** L'orario in vigore in un giorno. */
+export function scheduleAt(course: Course, date: ISODate): ScheduleSlot[] {
+  return course.pastSchedules.find((p) => date <= p.until)?.schedule ?? course.schedule
+}
+
+export function sameSchedule(a: ScheduleSlot[], b: ScheduleSlot[]): boolean {
+  const key = (s: ScheduleSlot[]) => JSON.stringify(s.filter((x) => x.hours > 0).map((x) => [x.day, x.hours, x.lab]))
+  return key(a) === key(b)
 }
