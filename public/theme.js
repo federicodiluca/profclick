@@ -6,7 +6,7 @@
     var choice
     try {
       choice = localStorage.getItem('profclick-theme')
-    } catch (e) {}
+    } catch {}
     var dark = choice === 'dark' || (choice !== 'light' && system.matches)
     document.documentElement.dataset.theme = dark ? 'dark' : 'light'
     document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
