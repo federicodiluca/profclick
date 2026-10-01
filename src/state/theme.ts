@@ -1,5 +1,5 @@
 // Il tema scelto su questo dispositivo: una comodità di chi guarda, non un dato da
-// sincronizzare. Lo applica lo script in testa ad app/index.html (profclickApplyTheme),
+// sincronizzare. Lo applica public/theme.js, caricato in testa alla pagina (profclickApplyTheme),
 // che segue anche i cambi del sistema e delle altre schede.
 
 import { useEffect, useState } from 'react'

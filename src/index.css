@@ -4,7 +4,7 @@
 @import "@fontsource-variable/figtree";
 
 /*
- * Il tema è su <html data-theme>: lo mette lo script in testa alla pagina, con la scelta
+ * Il tema è su <html data-theme>: lo mette public/theme.js, in testa alla pagina, con la scelta
  * fatta nell'app (Sistema, Chiaro, Scuro) o, di default, quella del sistema operativo.
  */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));

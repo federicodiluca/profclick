@@ -1,4 +1,4 @@
-/* La pagina pubblica usa lo stesso tema dell'app: lo script in testa a index.html lo sceglie. */
+/* La pagina pubblica usa lo stesso tema dell'app: public/theme.js lo sceglie. */
 @import "./index.css";
 
 html {
