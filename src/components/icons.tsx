@@ -423,6 +423,42 @@ export function AlertIcon(props: IconProps) {
   )
 }
 
+// --- Tema ------------------------------------------------------------------------------
+
+/** Sole: tema chiaro. */
+export function SunIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="4" {...tint} />
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+    </Icon>
+  )
+}
+
+const moon = 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z'
+
+/** Luna: tema scuro. */
+export function MoonIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d={moon} {...tint} />
+      <path d={moon} />
+    </Icon>
+  )
+}
+
+/** Cerchio metà pieno: il tema segue il sistema. */
+export function SystemThemeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor" fillOpacity={0.5} stroke="none" />
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 3.5v17" />
+    </Icon>
+  )
+}
+
 // --- Sincronizzazione -------------------------------------------------------------------
 
 const cloud = 'M7 18.5a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.5 1.6A3.8 3.8 0 0 1 17.2 18.5Z'

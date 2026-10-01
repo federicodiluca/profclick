@@ -3,8 +3,11 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/figtree";
 
-/* Il tema segue il sistema operativo: nessun interruttore da ricordare. */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/*
+ * Il tema è su <html data-theme>: lo mette lo script in testa alla pagina, con la scelta
+ * fatta nell'app (Sistema, Chiaro, Scuro) o, di default, quella del sistema operativo.
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 @theme inline {
   --font-heading: var(--font-sans);
@@ -71,32 +74,35 @@
   --radius: 0.7rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: oklch(0.2 0.018 175);
-    --foreground: oklch(0.95 0.008 160);
-    --card: oklch(0.24 0.022 175);
-    --card-foreground: oklch(0.95 0.008 160);
-    --popover: oklch(0.24 0.022 175);
-    --popover-foreground: oklch(0.95 0.008 160);
-    --primary: oklch(0.84 0.09 165);
-    --primary-foreground: oklch(0.22 0.03 175);
-    --secondary: oklch(0.29 0.025 175);
-    --secondary-foreground: oklch(0.95 0.008 160);
-    --muted: oklch(0.28 0.02 175);
-    --muted-foreground: oklch(0.72 0.02 170);
-    --accent: oklch(0.3 0.03 175);
-    --accent-foreground: oklch(0.95 0.008 160);
-    --destructive: oklch(0.7 0.17 25);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.7 0.08 165);
-    --pencil-red: oklch(0.72 0.15 27);
-    --pencil-blue: oklch(0.74 0.11 258);
-    --done: oklch(0.75 0.13 155);
-    --warn: oklch(0.8 0.13 70);
-  }
+/*
+ * Scuro: nero e verde, senza vie di mezzo. Il fondo è quasi nero; le superfici (card,
+ * menu, campi) sono verde lavagna, e il gesso fluo segna solo quello che conta: pulsanti,
+ * oggi, selezioni. Il verde del fatto resta più calmo, per non confondersi con lui.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --background: oklch(0.13 0.008 170);
+  --foreground: oklch(0.96 0.012 160);
+  --card: oklch(0.22 0.042 168);
+  --card-foreground: oklch(0.96 0.012 160);
+  --popover: oklch(0.22 0.042 168);
+  --popover-foreground: oklch(0.96 0.012 160);
+  --primary: oklch(0.88 0.22 150);
+  --primary-foreground: oklch(0.15 0.03 160);
+  --secondary: oklch(0.27 0.055 168);
+  --secondary-foreground: oklch(0.96 0.012 160);
+  --muted: oklch(0.25 0.05 168);
+  --muted-foreground: oklch(0.76 0.045 166);
+  --accent: oklch(0.3 0.06 168);
+  --accent-foreground: oklch(0.96 0.012 160);
+  --destructive: oklch(0.7 0.18 25);
+  --border: oklch(0.36 0.07 166);
+  --input: oklch(0.42 0.07 166);
+  --ring: oklch(0.82 0.2 150);
+  --pencil-red: oklch(0.72 0.17 25);
+  --pencil-blue: oklch(0.75 0.13 255);
+  --done: oklch(0.8 0.17 155);
+  --warn: oklch(0.83 0.14 75);
 }
 
 /* I colori delle classi: stessa luminosità, tinte diverse, leggibili in entrambi i temi. */
@@ -109,6 +115,18 @@
   --course-5: oklch(0.6 0.1 210);
   --course-6: oklch(0.6 0.16 350);
   --course-7: oklch(0.6 0.13 125);
+}
+
+/* Sul fondo scuro le classi si accendono un po', per restare decise. */
+:root[data-theme='dark'] {
+  --course-0: oklch(0.7 0.15 258);
+  --course-1: oklch(0.7 0.17 27);
+  --course-2: oklch(0.72 0.14 160);
+  --course-3: oklch(0.7 0.16 310);
+  --course-4: oklch(0.78 0.14 70);
+  --course-5: oklch(0.72 0.11 210);
+  --course-6: oklch(0.7 0.17 350);
+  --course-7: oklch(0.74 0.15 125);
 }
 
 @layer base {

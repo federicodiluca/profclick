@@ -3,6 +3,7 @@ import { Link, useRoute } from 'wouter'
 import { ClassesIcon, type IconComponent, WeekIcon, YearIcon } from '@/components/icons'
 import { InstallButton } from '@/components/InstallButton'
 import { SyncButton } from '@/components/SyncButton'
+import { ThemeButton } from '@/components/ThemeButton'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 
@@ -55,6 +56,7 @@ export function Layout({ children }: { children: ReactNode }) {
         )}
         <div className="flex items-center gap-1">
           <InstallButton variant="ghost" size="sm" />
+          <ThemeButton />
           <SyncButton />
         </div>
       </header>

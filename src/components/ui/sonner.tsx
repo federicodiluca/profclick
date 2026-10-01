@@ -1,11 +1,13 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { useTheme } from "@/state/theme"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme } = useTheme()
   return (
     <Sonner
-      // Il tema segue il sistema, come il resto dell'app (index.css).
-      theme="system"
+      // Lo stesso tema del resto dell'app (src/state/theme.ts).
+      theme={theme}
       className="toaster group"
       icons={{
         success: (

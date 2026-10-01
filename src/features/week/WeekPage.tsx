@@ -104,7 +104,7 @@ export default function WeekPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots }) => (
-          <section key={date} className={cn('space-y-2', date === now && 'rounded-xl ring-2 ring-primary/30 ring-offset-4 ring-offset-background')}>
+          <section key={date} className={cn('space-y-2', date === now && '-mx-3 rounded-2xl md:mx-0 border-2 border-primary/30 bg-primary/5 p-3')}>
             <h2 className="flex items-baseline justify-between gap-2 text-sm font-semibold first-letter:uppercase">
               {formatLong(date)}
               {date === now && <span className="text-xs font-medium tracking-wide text-primary normal-case">oggi</span>}
