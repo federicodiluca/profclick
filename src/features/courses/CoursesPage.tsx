@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { CourseName, ProgressBar } from '@/components/bits'
-import { PlusIcon } from '@/components/icons'
+import { PlusIcon, TimetableIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { currentPeriod, sortedCourses } from '@/core/calendar'
 import { today } from '@/core/dates'
@@ -24,9 +24,18 @@ export default function CoursesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-heading text-2xl font-bold">Classi</h1>
-        <Button onClick={() => setCreating(true)}>
-          <PlusIcon /> Nuova classe
-        </Button>
+        <div className="flex gap-2">
+          {courses.length > 0 && (
+            <Button variant="outline" asChild>
+              <Link to="/orario">
+                <TimetableIcon /> Orario
+              </Link>
+            </Button>
+          )}
+          <Button onClick={() => setCreating(true)}>
+            <PlusIcon /> Nuova classe
+          </Button>
+        </div>
       </div>
 
       {courses.length === 0 && <p className="text-muted-foreground">Ancora nessuna classe. Creane una con il suo orario settimanale.</p>}

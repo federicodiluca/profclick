@@ -408,6 +408,41 @@ export function DownloadIcon(props: IconProps) {
   )
 }
 
+/** Registro di classe aperto, con le righe e la matita: gli argomenti da copiare nel registro. */
+export function RegisterIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 6.5C10 5 7 4.5 3.5 5v13.5c3.5-.5 6.5 0 8.5 1.5Z" {...tint} />
+      <path d="M12 6.5C10 5 7 4.5 3.5 5v13.5c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V11" />
+      <path d="M12 6.5V20M6 9c1.5-.1 2.8.1 4 .6M6 12.5c1.5-.1 2.8.1 4 .6" />
+      <path d="m15 13.5 5.5-5.5a1.4 1.4 0 0 0-2-2L13 11.5l-.5 2.5Z" />
+    </Icon>
+  )
+}
+
+/** Orario: tabella con la riga dei giorni e due ore colorate. */
+export function TimetableIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 9.5h5.5V14H9ZM14.5 14H20v4.5a2 2 0 0 1-2 2h-3.5Z" {...tint} />
+      <rect x="3.5" y="4" width="17" height="16.5" rx="2" />
+      <path d="M3.5 9.5h17M3.5 15h17M9 4v16.5M14.5 4v16.5" />
+    </Icon>
+  )
+}
+
+/** Stampante con il foglio che esce. */
+export function PrintIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="8.5" width="18" height="8.5" rx="2" {...tint} />
+      <path d="M7 8.5V3.5h10v5M7 17H5a2 2 0 0 1-2-2v-4.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2h-2" />
+      <rect x="7" y="13.5" width="10" height="7" rx="1" />
+      <path d="M17 11.5h.01" />
+    </Icon>
+  )
+}
+
 /** Telefono con freccia verso il basso: installa l'app. */
 export function InstallIcon(props: IconProps) {
   return (

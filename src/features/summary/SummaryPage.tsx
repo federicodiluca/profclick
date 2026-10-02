@@ -12,6 +12,7 @@ import { type Course, GRADE_LABELS, isMinor, type Period } from '@/core/model'
 import { topicProgress } from '@/core/progress'
 import { formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
+import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
 
 /** A che punto è ogni classe nel periodo: voti, programma, educazione civica, e due righe di note. */
@@ -102,6 +103,7 @@ function CourseSummary({ course, period }: { course: Course; period: Period }) {
 
   const unplacedFull = grades.unplaced.filter((u) => !isMinor(u.planned)).length
   const note = course.periodNotes[period.id] ?? ''
+  const noteField = useAutosave((value) => value !== note && apply(saveCourse({ ...course, periodNotes: { ...course.periodNotes, [period.id]: value } })))
 
   return (
     <section className="space-y-4 rounded-xl border bg-card p-4 shadow-xs">
@@ -170,7 +172,7 @@ function CourseSummary({ course, period }: { course: Course; period: Period }) {
         placeholder="Note per lo scrutinio: recuperi, accordi, chi tenere d'occhio…"
         aria-label={`Note di ${period.name} per ${course.className}`}
         className="min-h-0 text-sm"
-        onBlur={(e) => e.target.value !== note && apply(saveCourse({ ...course, periodNotes: { ...course.periodNotes, [period.id]: e.target.value } }))}
+        {...noteField}
       />
     </section>
   )

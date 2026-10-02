@@ -51,7 +51,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-4xl flex-col px-4">
-      <header className="flex items-center justify-between gap-3 py-3">
+      <header className="flex items-center justify-between gap-3 py-3 print:hidden">
         <Link to="/" className="flex items-center gap-2 font-heading text-lg font-bold tracking-tight">
           <img src="/favicon.svg" alt="" className="size-7" />
           ProfClick
@@ -68,12 +68,12 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className={cn('flex-1 pb-10', ready && 'pb-24 sm:pb-10')}>{children}</main>
+      <main className={cn('flex-1 pb-10', ready && 'pb-24 sm:pb-10', 'print:pb-0')}>{children}</main>
 
       {/* Da telefono la navigazione sta in basso, a portata di pollice. */}
       {ready && (
         <nav
-          className="fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t bg-background/95 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t bg-background/95 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden print:hidden"
           aria-label="Sezioni"
         >
           {nav}

@@ -38,6 +38,9 @@ come app (PWA). Le decisioni di progetto sono in [docs/decisions](docs/decisions
   e nel Da preparare; per consigli e scrutini c'è il riepilogo della classe ricavato dai dati (voti,
   argomenti svolti, educazione civica), da copiare nel verbale.
 - **Calendario**: "Aggiungi a Google Calendar" per ogni verifica e riunione, o un file .ics con tutte.
+- **Per il registro**: gli argomenti di una lezione, o di tutta la settimana fino a oggi, come testo
+  da incollare nel registro elettronico, per giorno o per classe.
+- **Orario**: la griglia con tutte le classi, da tenere sul telefono o stampare (anche in PDF).
 - **Proposta di piano** per periodo: argomenti e valutazioni sulle lezioni vuote, da applicare
   con un tocco.
 - **Settimana**: cosa fare in ogni classe, in ordine di ora, con la spunta di fatto.

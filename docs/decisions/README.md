@@ -21,3 +21,4 @@ Una decisione superata non si cancella: si scrive un nuovo ADR che la sostituisc
 | [0013](0013-programma-come-testo.md) | Programma svolto e piano di lavoro come testo da incollare | Accettata |
 | [0014](0014-filtro-e-ora-di-inizio.md) | Classi da vedere nella settimana; ora d'inizio facoltativa | Accettata |
 | [0015](0015-riepilogo.md) | Riepilogo per periodo a barre, con le note per lo scrutinio | Accettata |
+| [0016](0016-registro-e-orario.md) | Argomenti da incollare nel registro; orario da stampare | Accettata |

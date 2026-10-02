@@ -10,6 +10,7 @@ import { openPrep } from '@/core/prep'
 import { courseTopics } from '@/core/progress'
 import { newId } from '@/lib/id'
 import { cn } from '@/lib/utils'
+import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
 
 /** Appunti liberi della classe e tutto quello che c'è da preparare, con quando serve. */
@@ -17,6 +18,7 @@ export function NotesTab({ course }: { course: Course }) {
   const { data, apply } = useData()
   const [draft, setDraft] = useState('')
   const [topicId, setTopicId] = useState('')
+  const notes = useAutosave((value) => value !== course.notes && apply(saveCourse({ ...course, notes: value })))
   const due = new Map(openPrep(data, today()).map((p) => [p.item.id, p.due]))
   const topics = courseTopics(data, course.id).filter((t) => !t.completed)
   const items = [...course.prep].sort((a, b) => Number(a.done) - Number(b.done) || (due.get(a.id) ?? '9999').localeCompare(due.get(b.id) ?? '9999'))
@@ -104,7 +106,7 @@ export function NotesTab({ course }: { course: Course }) {
           defaultValue={course.notes}
           rows={10}
           placeholder="Accordi con i colleghi, studenti con PDP, materiale da portare…"
-          onBlur={(e) => e.target.value !== course.notes && apply(saveCourse({ ...course, notes: e.target.value }))}
+          {...notes}
         />
       </section>
     </div>

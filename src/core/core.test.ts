@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, cancelAndShift, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, cancelAndShift, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
+import { registerText } from './registerText'
+import { cellKey, timetable } from './timetable'
 import { courseSlots, floatingSlotsOfWeek, slotsOn } from './calendar'
 import { easter, startOfWeek, weekday } from './dates'
 import { periodGrades, targetGrades } from './grading'
@@ -655,5 +657,61 @@ describe('testo del programma', () => {
     expect(programText(archivedProgram(year, year.courses[0]), 'svolto', false)).toBe(
       ['Programma svolto · 3A · Informatica · a.s. 2026/27', '', 'Algoritmi', '- Flowgorithm', '- Pseudocodice'].join('\n'),
     )
+  })
+})
+
+describe('testo per il registro', () => {
+  it('una riga per lezione, per giorno o per classe, senza annullate e vuote', () => {
+    let data = saveCourse({ ...course, id: 'c2', className: '4B', order: 1 })(base())
+    data = addActivity('c1', '2026-10-05', { id: 'a', kind: 'spiegazione', topicIds: ['t1'], text: 'diagrammi di flusso' })(data)
+    data = addActivity('c1', '2026-10-05', { id: 'b', kind: 'esercitazione', topicIds: [], text: '' })(data)
+    data = addActivity('c2', '2026-10-05', { ...verifica('c', 'pratico', 30), topicIds: ['t2'] })(data)
+    data = addActivity('c1', '2026-10-07', verifica('d', 'scritto', 100, true))(data)
+    data = addActivity('c2', '2026-10-07', { id: 'e', kind: 'ripasso', topicIds: [], text: '' })(data)
+    data = setCancelled('c2', '2026-10-07', true)(data)
+    const slots = slotsOn(data, '2026-10-05').concat(slotsOn(data, '2026-10-07'), slotsOn(data, '2026-10-09'))
+    expect(registerText(data, slots, 'giorno')).toBe(
+      [
+        'Lunedì 5 ottobre',
+        '3A · Informatica: Spiegazione: Algoritmi, diagrammi di flusso. Esercitazione.',
+        '4B · Informatica: Prova pratica: Array.',
+        '',
+        'Mercoledì 7 ottobre',
+        '3A · Informatica: Verifica scritta (seconda parte).',
+      ].join('\n'),
+    )
+    expect(registerText(data, slots, 'classe')).toBe(
+      [
+        '3A · Informatica',
+        'Lunedì 5 ottobre: Spiegazione: Algoritmi, diagrammi di flusso. Esercitazione.',
+        'Mercoledì 7 ottobre: Verifica scritta (seconda parte).',
+        '',
+        '4B · Informatica',
+        'Lunedì 5 ottobre: Prova pratica: Array.',
+      ].join('\n'),
+    )
+  })
+})
+
+describe('orario stampabile', () => {
+  it('le lezioni con l ora nella griglia, le altre a parte', () => {
+    let data = saveCourse({
+      ...course,
+      schedule: [
+        { day: 1, hours: 2, lab: false, start: 3 },
+        { day: 3, hours: 1, lab: true },
+        { day: 6, hours: 1, lab: false, start: 1 },
+      ],
+    })(base())
+    data = saveCourse({ ...course, id: 'c2', className: '4B', order: 1, schedule: [{ day: 1, hours: 1, lab: false, start: 4 }, { day: null, hours: 2, lab: false }] })(data)
+    const t = timetable(data, '2026-10-05')
+    expect(t.days).toEqual([1, 2, 3, 4, 5, 6])
+    expect(t.rows).toBe(4)
+    expect(t.cells.get(cellKey(1, 3))?.hours).toBe(2)
+    expect(t.cells.get(cellKey(6, 1))?.course.id).toBe('c1')
+    // Alla 4ª ora del lunedì c'è ancora la 3A: la 4B, sovrapposta, va tra quelle senza ora.
+    expect(t.unplaced.get(1)?.map((e) => e.course.id)).toEqual(['c2'])
+    expect(t.unplaced.get(3)?.[0].lab).toBe(true)
+    expect(t.floating.map((e) => e.course.className)).toEqual(['4B'])
   })
 })

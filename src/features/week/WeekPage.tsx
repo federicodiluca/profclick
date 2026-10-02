@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
 import { courseColor, formatHours } from '@/lib/ui'
-import { CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, MeetingIcon, PlusIcon, PrepIcon } from '@/components/icons'
+import { CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, MeetingIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
 import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
 import { type Change, markDone, setDone, toggleMeetingPrep, togglePrep } from '@/core/actions'
@@ -11,6 +11,7 @@ import { addDays, daysBetween, formatLong, formatRange, formatShort, type ISODat
 import { meetingsOn, openMeetingPrep } from '@/core/meetings'
 import { type Course, courseLabel, meetingLabel } from '@/core/model'
 import { openPrep } from '@/core/prep'
+import { lessonRegisterText } from '@/core/registerText'
 import { CourseDialog } from '@/features/courses/CourseDialog'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { MeetingDialog } from '@/features/meetings/MeetingDialog'
@@ -18,6 +19,7 @@ import { MeetingCard } from '@/features/meetings/MeetingsPage'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 import { useHiddenCourses } from '@/state/weekFilter'
+import { RegisterDialog } from './RegisterDialog'
 
 export default function WeekPage() {
   const { data, apply } = useData()
@@ -27,6 +29,7 @@ export default function WeekPage() {
   const [open, setOpen] = useState<{ courseId: string; date: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [meetingOpen, setMeetingOpen] = useState<string | null>(null)
+  const [register, setRegister] = useState(false)
   const courses = sortedCourses(data)
   const { hidden, toggle, showAll } = useHiddenCourses()
   const shown = (slot: LessonSlot) => !hidden.has(slot.courseId)
@@ -44,6 +47,8 @@ export default function WeekPage() {
   })
   const floating = floatingSlotsOfWeek(data, monday).filter(shown)
   const hasSaturday = days[5].slots.length + days[5].hiddenSlots > 0 || days[5].meetings.length > 0 || courses.some((c) => c.schedule.some((s) => s.day === 6))
+  // Per il registro: le lezioni fino a oggi, delle classi accese, con qualcosa da scrivere.
+  const forRegister = [...days.flatMap((d) => d.slots), ...floating].filter((s) => s.date <= now && lessonRegisterText(data, s))
   const unconfirmed = [...days.flatMap((d) => d.slots), ...floating].filter(
     (s) => s.date < now && s.lesson?.activities.length && !s.lesson.done && !s.lesson.cancelled,
   )
@@ -71,6 +76,12 @@ export default function WeekPage() {
           <p className="text-muted-foreground">{formatRange(monday, addDays(monday, hasSaturday ? 5 : 4))}</p>
         </div>
         <div className="flex items-center gap-1">
+          {forRegister.length > 0 && (
+            <Button variant="outline" onClick={() => setRegister(true)} aria-label="Argomenti per il registro" title="Gli argomenti delle lezioni, da incollare nel registro">
+              <RegisterIcon />
+              <span className="hidden sm:inline">Registro</span>
+            </Button>
+          )}
           <Button variant="outline" size="icon" aria-label="Settimana precedente" onClick={() => setMonday(addDays(monday, -7))}>
             <ChevronLeftIcon />
           </Button>
@@ -164,6 +175,7 @@ export default function WeekPage() {
 
       <LessonDialog courseId={open?.courseId ?? ''} date={open?.date ?? null} onClose={() => setOpen(null)} />
       <MeetingDialog open={meetingOpen} onClose={() => setMeetingOpen(null)} />
+      <RegisterDialog slots={forRegister} open={register} onClose={() => setRegister(false)} />
     </div>
   )
 }

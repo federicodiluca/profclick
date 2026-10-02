@@ -14,6 +14,7 @@ const CoursePage = lazy(() => import('@/features/course/CoursePage'))
 const SummaryPage = lazy(() => import('@/features/summary/SummaryPage'))
 const MeetingsPage = lazy(() => import('@/features/meetings/MeetingsPage'))
 const YearPage = lazy(() => import('@/features/year/YearPage'))
+const TimetablePage = lazy(() => import('@/features/timetable/TimetablePage'))
 const Welcome = lazy(() => import('@/features/welcome/Welcome'))
 
 function Waiting() {
@@ -32,6 +33,7 @@ function Pages() {
       <Route path="/riepilogo" component={SummaryPage} />
       <Route path="/riunioni" component={MeetingsPage} />
       <Route path="/anno" component={YearPage} />
+      <Route path="/orario" component={TimetablePage} />
       <Route>
         <p className="py-16 text-center text-muted-foreground">Pagina non trovata.</p>
       </Route>

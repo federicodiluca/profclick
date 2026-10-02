@@ -16,5 +16,10 @@
   apply()
   system.addEventListener('change', apply)
   window.addEventListener('storage', apply)
+  // Sulla carta sempre il tema chiaro; finita la stampa si torna a quello scelto.
+  window.addEventListener('beforeprint', function () {
+    document.documentElement.dataset.theme = 'light'
+  })
+  window.addEventListener('afterprint', apply)
   window.profclickApplyTheme = apply
 })()

@@ -14,6 +14,7 @@ import { classNames, classSummary, defaultPrep, hasCoordinatorPrep, periodEnded,
 import { isClassMeeting, type Meeting, MEETING_KINDS, MEETING_LABELS, type MeetingKind, meetingLabel, type ProfclickData } from '@/core/model'
 import { newId } from '@/lib/id'
 import { cn } from '@/lib/utils'
+import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
 
 type Draft = Omit<Meeting, 'updatedAt'>
@@ -51,6 +52,13 @@ function MeetingForm({ id, date, onClose }: { id: string | null; date?: ISODate;
   const saved = id ? data.meetings[id] : undefined
   const [draft, setDraft] = useState<Draft>(() => blank(data, date ?? today()))
   const [newItem, setNewItem] = useState('')
+  // I testi si salvano anche a dialogo chiuso; di una riunione appena eliminata, niente.
+  const saveText = (patch: Partial<Draft>) => {
+    if (saved) apply(saveMeeting({ ...saved, ...patch }))
+    else if (!id) setDraft((d) => ({ ...d, ...patch }))
+  }
+  const title = useAutosave((value) => value.trim() !== (saved ?? draft).title && saveText({ title: value.trim() }))
+  const notes = useAutosave((value) => value !== (saved ?? draft).notes && saveText({ notes: value }))
   if (id && !saved) return null
 
   // Una riunione già salvata si aggiorna a ogni modifica, come le lezioni; una nuova solo con "Aggiungi".
@@ -131,7 +139,7 @@ function MeetingForm({ id, date, onClose }: { id: string | null; date?: ISODate;
             id="meeting-title"
             placeholder={MEETING_LABELS[meeting.kind]}
             defaultValue={meeting.title}
-            onBlur={(e) => e.target.value.trim() !== meeting.title && set({ title: e.target.value.trim() })}
+            {...title}
           />
         </div>
       </div>
@@ -203,7 +211,7 @@ function MeetingForm({ id, date, onClose }: { id: string | null; date?: ISODate;
               ? 'Cosa si è deciso, cosa fare dopo. Niente nomi: lo studente è nel PEI, non qui.'
               : 'Cosa si è deciso, cosa fare dopo. Niente nomi di studenti: quelli stanno sul registro.'
           }
-          onBlur={(e) => e.target.value !== meeting.notes && set({ notes: e.target.value })}
+          {...notes}
         />
       </section>
 

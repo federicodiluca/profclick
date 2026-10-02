@@ -1,7 +1,7 @@
 import { createElement, useState } from 'react'
 import { toast } from 'sonner'
 import { ActivityLine, CourseName, Segmented, Toggle } from '@/components/bits'
-import { CalendarAddIcon, CancelledIcon, DoneIcon, NoteIcon, ShiftIcon, TrashIcon } from '@/components/icons'
+import { CalendarAddIcon, CancelledIcon, DoneIcon, NoteIcon, RegisterIcon, ShiftIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -12,10 +12,12 @@ import { assessmentEntry, googleCalendarLink } from '@/core/calendarExport'
 import { formatDay, formatLong, type ISODate, startOfWeek } from '@/core/dates'
 import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, lessonKey } from '@/core/model'
 import { courseTopics, TEACHING_KINDS, topicAround, topicsSinceLastAssessment } from '@/core/progress'
+import { lessonRegisterText } from '@/core/registerText'
 import { activityIcon } from '@/lib/activityIcons'
 import { newId } from '@/lib/id'
 import { formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
+import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
 
 /** Peso segnaposto del voto minore: al momento di aggiungerlo diventa quello proposto dalla classe. */
@@ -50,6 +52,7 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
   const course = data.courses[courseId]
   const lesson = data.lessons[lessonKey(courseId, date)]
   const [noteOpen, setNoteOpen] = useState(Boolean(lesson?.note))
+  const note = useAutosave((value) => course && value !== (lesson?.note ?? '') && apply(setNote(courseId, date, value)))
   if (!course) return null
 
   const slot = courseSlots(data, course, date, date)[0]
@@ -111,17 +114,34 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
             ))}
           </div>
 
-          {noteOpen ? (
+          <div className="flex flex-wrap gap-1.5">
+            {!noteOpen && (
+              <Button variant="ghost" size="sm" onClick={() => setNoteOpen(true)}>
+                <NoteIcon /> Aggiungi un appunto
+              </Button>
+            )}
+            {activities.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  navigator.clipboard.writeText(lessonRegisterText(data, { lesson })).then(
+                    () => toast.success('Copiato: ora incollalo nel registro'),
+                    () => toast.error('Copia non riuscita'),
+                  )
+                }
+              >
+                <RegisterIcon /> Copia per il registro
+              </Button>
+            )}
+          </div>
+          {noteOpen && (
             <Textarea
               placeholder="Appunti su questa lezione: cosa è rimasto indietro, chi era assente, cosa portare…"
               defaultValue={lesson?.note ?? ''}
-              onBlur={(e) => e.target.value !== (lesson?.note ?? '') && apply(setNote(courseId, date, e.target.value))}
+              {...note}
               rows={3}
             />
-          ) : (
-            <Button variant="ghost" size="sm" className="justify-self-start" onClick={() => setNoteOpen(true)}>
-              <NoteIcon /> Aggiungi un appunto
-            </Button>
           )}
         </>
       )}
@@ -182,6 +202,7 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
   const course = data.courses[courseId]
   const topics = courseTopics(data, courseId)
   const update = (patch: Partial<Activity>) => apply(replaceActivity(courseId, date, { ...activity, ...patch }))
+  const text = useAutosave((value) => value !== activity.text && update({ text: value }))
   const a = activity.assessment
   const setAssessment = (patch: Partial<Assessment>) => a && update({ assessment: { ...a, ...patch } })
   const toggleTopic = (id: string) =>
@@ -252,7 +273,7 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
               : 'Dettagli: esercizi, pagine, materiale…'
         }
         defaultValue={activity.text}
-        onBlur={(e) => e.target.value !== activity.text && update({ text: e.target.value })}
+        {...text}
         className="h-8"
       />
 

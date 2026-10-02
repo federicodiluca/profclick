@@ -60,7 +60,12 @@ export default function YearPage() {
         action={
           <div className="flex flex-wrap gap-1">
             {(Object.keys(PERIOD_PRESETS) as PeriodPreset[]).map((preset) => (
-              <Button key={preset} variant="outline" size="sm" onClick={() => update({ periods: presetPeriods(preset, year.start, year.end) })}>
+              <Button
+                key={preset}
+                variant="outline"
+                size="sm"
+                onClick={() => applyWithUndo(setYear({ ...year, periods: presetPeriods(preset, year.start, year.end) }), `Periodi: ${PERIOD_PRESETS[preset].toLowerCase()}`)}
+              >
                 {PERIOD_PRESETS[preset]}
               </Button>
             ))}
@@ -102,7 +107,7 @@ export default function YearPage() {
                 <TextField className="col-span-3 sm:col-span-1" label="Nome" value={h.name} onChange={(name) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, name } : x)) })} />
                 <DateField label="Dal" value={h.from} onChange={(from) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, from, to: x.to < from ? from : x.to } : x)) })} />
                 <DateField label="Al" value={h.to} onChange={(to) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, to } : x)) })} />
-                <Button variant="ghost" size="icon" aria-label={`Togli ${h.name}`} onClick={() => update({ holidays: year.holidays.filter((x) => x.id !== h.id) })}>
+                <Button variant="ghost" size="icon" aria-label={`Togli ${h.name}`} onClick={() => applyWithUndo(setYear({ ...year, holidays: year.holidays.filter((x) => x.id !== h.id) }), `Tolto dal calendario: ${h.name}`)}>
                   <TrashIcon />
                 </Button>
               </div>
