@@ -30,6 +30,7 @@ function blank(order: number, color: number, minorWeight: number): Draft {
     pastSchedules: [],
     rules: { perPeriod: null, required: [...GRADE_TYPES], minorWeight },
     civics: {},
+    periodNotes: {},
     prep: [],
     notes: '',
     order,

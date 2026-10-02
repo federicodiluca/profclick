@@ -2,15 +2,14 @@ import { type ReactNode, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
 import { courseColor, formatHours } from '@/lib/ui'
-import { AlertIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, MeetingIcon, PlusIcon, PrepIcon } from '@/components/icons'
-import { PencilCircle, PencilTick } from '@/components/pencil'
+import { CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, MeetingIcon, PlusIcon, PrepIcon } from '@/components/icons'
+import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
 import { type Change, markDone, setDone, toggleMeetingPrep, togglePrep } from '@/core/actions'
-import { currentPeriod, floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses } from '@/core/calendar'
+import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses } from '@/core/calendar'
 import { addDays, daysBetween, formatLong, formatRange, formatShort, type ISODate, startOfWeek, today, weekday } from '@/core/dates'
-import { periodGrades } from '@/core/grading'
 import { meetingsOn, openMeetingPrep } from '@/core/meetings'
-import { type Course, courseLabel, GRADE_LABELS, meetingLabel } from '@/core/model'
+import { type Course, courseLabel, meetingLabel } from '@/core/model'
 import { openPrep } from '@/core/prep'
 import { CourseDialog } from '@/features/courses/CourseDialog'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
@@ -92,8 +91,6 @@ export default function WeekPage() {
       )}
 
       {courses.length > 1 && <CourseFilter courses={courses} hidden={hidden} onToggle={toggle} onShowAll={showAll} />}
-
-      {thisWeek && <Alerts hidden={hidden} />}
 
       {unconfirmed.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn/10 p-3">
@@ -297,7 +294,11 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
   if (lesson?.cancelled) {
     return (
       <button type="button" onClick={onOpen} className="flex w-full items-center justify-between gap-2 rounded-xl border border-dashed p-3 text-left text-muted-foreground">
-        <CourseName course={course} className="line-through" />
+        {/* Saltata: barrata a matita rossa, come sul registro. */}
+        <span className="relative min-w-0">
+          <CourseName course={course} />
+          <PencilStrike className="text-pencil-red" />
+        </span>
         <span className="flex items-center gap-1 text-xs">
           <CancelledIcon className="size-4" /> annullata
         </span>
@@ -343,48 +344,6 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
           {done ? <PencilTick className="absolute -top-1.5 left-0.5 size-8" /> : <DoneIcon className="size-5" />}
         </button>
       )}
-    </div>
-  )
-}
-
-/** Le classi a cui mancano voti nel periodo in corso, con cosa manca. */
-function Alerts({ hidden }: { hidden: Set<string> }) {
-  const { data } = useData()
-  const now = today()
-  const period = data.year ? currentPeriod(data.year, now) : undefined
-  if (!period) return null
-  const alerts = sortedCourses(data)
-    .filter((course) => !hidden.has(course.id))
-    .map((course) => ({ course, grades: periodGrades(data, course, period, now) }))
-    .filter((a) => a.grades.status !== 'ok')
-  if (alerts.length === 0) return null
-
-  return (
-    <div className="space-y-2">
-      {alerts.map(({ course, grades }) => (
-        <Link
-          key={course.id}
-          to={`/classi/${course.id}`}
-          className={cn(
-            'flex items-start gap-3 rounded-xl border p-3 text-sm transition-colors hover:bg-muted/50',
-            grades.status === 'a-rischio' ? 'border-pencil-red/40' : 'border-warn/40',
-          )}
-        >
-          <AlertIcon className={cn('mt-0.5 size-5 shrink-0', grades.status === 'a-rischio' ? 'text-pencil-red' : 'text-warn')} />
-          <span className="min-w-0">
-            <CourseName course={course} className="font-semibold" />
-            <span className="block text-muted-foreground">
-              {period.name}: {grades.full.length} voti previsti su {grades.target}
-              {grades.missingTypes.length > 0 && `, manca ${grades.missingTypes.map((t) => GRADE_LABELS[t].toLowerCase()).join(' e ')}`}
-              {grades.civics.planned < grades.civics.target - 0.01 &&
-                `; educazione civica ${Math.round(grades.civics.planned * 10) / 10} ore su ${grades.civics.target}`}
-              .
-              {' '}
-              {grades.freeLessons} lezioni ancora libere. Tocca per la proposta di piano.
-            </span>
-          </span>
-        </Link>
-      ))}
     </div>
   )
 }

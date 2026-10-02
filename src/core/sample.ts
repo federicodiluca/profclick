@@ -30,6 +30,7 @@ const PROGRAMS: { course: Omit<Course, 'updatedAt'>; topics: SampleTopic[] }[] =
       pastSchedules: [],
       rules,
       civics: { p1: 3 },
+      periodNotes: { p1: 'Rossi deve recuperare l\'orale di settembre.' },
       prep: [
         { id: 'demo-3a-p1', text: 'Esercizi di laboratorio su selezione e cicli', topicId: 'demo-3a-t2', done: false },
         { id: 'demo-3a-p2', text: 'Slide sugli array', topicId: 'demo-3a-t3', done: false },
@@ -62,6 +63,7 @@ const PROGRAMS: { course: Omit<Course, 'updatedAt'>; topics: SampleTopic[] }[] =
       pastSchedules: [],
       rules,
       civics: { p2: 4 },
+      periodNotes: {},
       prep: [],
       notes: '',
       order: 1,

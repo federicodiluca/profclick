@@ -11,6 +11,7 @@ import { Layout } from './Layout'
 const WeekPage = lazy(() => import('@/features/week/WeekPage'))
 const CoursesPage = lazy(() => import('@/features/courses/CoursesPage'))
 const CoursePage = lazy(() => import('@/features/course/CoursePage'))
+const SummaryPage = lazy(() => import('@/features/summary/SummaryPage'))
 const MeetingsPage = lazy(() => import('@/features/meetings/MeetingsPage'))
 const YearPage = lazy(() => import('@/features/year/YearPage'))
 const Welcome = lazy(() => import('@/features/welcome/Welcome'))
@@ -28,6 +29,7 @@ function Pages() {
       <Route path="/" component={WeekPage} />
       <Route path="/classi" component={CoursesPage} />
       <Route path="/classi/:id" component={CoursePage} />
+      <Route path="/riepilogo" component={SummaryPage} />
       <Route path="/riunioni" component={MeetingsPage} />
       <Route path="/anno" component={YearPage} />
       <Route>

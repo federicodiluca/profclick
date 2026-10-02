@@ -27,6 +27,7 @@ const course: Omit<Course, 'updatedAt'> = {
   pastSchedules: [],
   rules: { perPeriod: null, required: ['scritto', 'teorico', 'pratico'], minorWeight: 50 },
   civics: {},
+  periodNotes: {},
   prep: [],
   notes: '',
   order: 0,

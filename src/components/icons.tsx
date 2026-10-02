@@ -202,6 +202,18 @@ export function ClassesIcon(props: IconProps) {
   )
 }
 
+/** Riepilogo: cartellina con le barre di avanzamento. */
+export function SummaryIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="4" width="16" height="17" rx="2" {...tint} />
+      <path d="M9 4H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" />
+      <rect x="9" y="2.5" width="6" height="3" rx="1" />
+      <path d="M8 10h8M8 13.5h5M8 17h6.5" />
+    </Icon>
+  )
+}
+
 /** Riunioni: tavolo con le sedie intorno, visto dall'alto come i banchi delle classi. */
 export function MeetingIcon(props: IconProps) {
   return (

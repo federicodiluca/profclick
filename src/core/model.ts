@@ -96,6 +96,8 @@ export interface Course extends Stamped {
   rules: GradeRules
   /** Ore di educazione civica da svolgere, per periodo. */
   civics: Record<string, number>
+  /** Note del riepilogo, per periodo: cosa ricordare per lo scrutinio. */
+  periodNotes: Record<string, string>
   prep: PrepItem[]
   /** Appunti liberi sulla classe: quello che prima stava nelle note sparse. */
   notes: string
@@ -283,6 +285,7 @@ function normalizeCourse(c: Loose<Course>): Course {
     schedule: normalizeSchedule(c.schedule),
     pastSchedules: (c.pastSchedules ?? []).map((p) => ({ until: p.until, schedule: normalizeSchedule(p.schedule) })),
     civics: c.civics ?? {},
+    periodNotes: c.periodNotes ?? {},
     prep: c.prep ?? [],
     notes: c.notes ?? '',
   }

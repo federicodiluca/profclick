@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link, useRoute } from 'wouter'
-import { ClassesIcon, type IconComponent, MeetingIcon, WeekIcon, YearIcon } from '@/components/icons'
+import { ClassesIcon, type IconComponent, MeetingIcon, SummaryIcon, WeekIcon, YearIcon } from '@/components/icons'
 import { InstallButton } from '@/components/InstallButton'
 import { SyncButton } from '@/components/SyncButton'
 import { ThemeButton } from '@/components/ThemeButton'
@@ -14,12 +14,13 @@ function NavLink({ to, icon: Icon, children }: { to: string; icon: IconComponent
       to={to}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex flex-1 flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:flex-none sm:flex-row sm:gap-1.5 sm:text-sm',
+        'flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:flex-none sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm',
         active && 'bg-secondary text-foreground',
       )}
     >
       <Icon className="size-5 sm:size-4" />
-      {children}
+      {/* Sui tablet stretti cinque voci non stanno in testata: restano le icone. */}
+      <span className="truncate sm:sr-only md:not-sr-only">{children}</span>
     </Link>
   )
 }
@@ -35,6 +36,9 @@ export function Layout({ children }: { children: ReactNode }) {
       </NavLink>
       <NavLink to="/classi" icon={ClassesIcon}>
         Classi
+      </NavLink>
+      <NavLink to="/riepilogo" icon={SummaryIcon}>
+        Riepilogo
       </NavLink>
       <NavLink to="/riunioni" icon={MeetingIcon}>
         Riunioni

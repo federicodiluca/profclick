@@ -40,7 +40,9 @@ come app (PWA). Le decisioni di progetto sono in [docs/decisions](docs/decisions
 - **Calendario**: "Aggiungi a Google Calendar" per ogni verifica e riunione, o un file .ics con tutte.
 - **Proposta di piano** per periodo: argomenti e valutazioni sulle lezioni vuote, da applicare
   con un tocco.
-- **Settimana**: cosa fare in ogni classe, spunta di fatto, avvisi sui voti mancanti.
+- **Settimana**: cosa fare in ogni classe, in ordine di ora, con la spunta di fatto.
+- **Riepilogo** per periodo: a che punto è ogni classe con voti, programma ed educazione civica
+  a barre, cosa manca, e le note per lo scrutinio.
 - **Nessun server**: i dati stanno sul dispositivo e, se colleghi Google, in un file sul tuo
   Drive. Le modifiche fatte da più dispositivi si uniscono da sole. Nessun dato degli studenti.
   Dettagli nell'[informativa sulla privacy](https://profclick.federicodiluca.com/privacy/).
