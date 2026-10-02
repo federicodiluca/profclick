@@ -14,3 +14,26 @@ details > summary::-webkit-details-marker {
 details[open] .faq-chevron {
   transform: rotate(90deg);
 }
+
+/* Il titolo sottolineato a mano con la matita rossa del logo. */
+.pencil-underline {
+  position: relative;
+  white-space: nowrap;
+}
+.pencil-underline svg {
+  position: absolute;
+  left: -3%;
+  bottom: -0.3em;
+  width: 104%;
+  height: 0.35em;
+  overflow: visible;
+  fill: none;
+  stroke: var(--pencil-red);
+  stroke-width: 6.5;
+  stroke-linecap: round;
+  filter: url(#chalk-grain);
+  pointer-events: none;
+}
+.pencil-underline path {
+  vector-effect: non-scaling-stroke;
+}

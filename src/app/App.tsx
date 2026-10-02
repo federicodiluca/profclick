@@ -3,6 +3,7 @@ import { Route, Router, Switch } from 'wouter'
 import { useHashLocation } from 'wouter/use-hash-location'
 import { Toaster } from '@/components/ui/sonner'
 import { UpdatePrompt } from '@/components/UpdatePrompt'
+import { PencilFilters } from '@/components/pencil'
 import { AuthProvider } from '@/state/auth'
 import { DataProvider, useData } from '@/state/data'
 import { Layout } from './Layout'
@@ -47,6 +48,7 @@ export default function App() {
           </Layout>
         </Router>
       </DataProvider>
+      <PencilFilters />
       <Toaster position="bottom-center" offset={{ bottom: 88 }} mobileOffset={{ bottom: 88 }} />
       {import.meta.env.PROD && <UpdatePrompt />}
     </AuthProvider>

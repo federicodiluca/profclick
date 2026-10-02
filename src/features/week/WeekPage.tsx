@@ -3,6 +3,7 @@ import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
 import { formatHours } from '@/lib/ui'
 import { AlertIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon } from '@/components/icons'
+import { PencilCircle, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
 import { markDone, setDone, togglePrep } from '@/core/actions'
 import { currentPeriod, floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses } from '@/core/calendar'
@@ -104,10 +105,16 @@ export default function WeekPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots }) => (
-          <section key={date} className={cn('space-y-2', date === now && '-mx-3 rounded-2xl md:mx-0 border-2 border-primary/30 bg-primary/5 p-3')}>
+          <section key={date} className="space-y-2">
             <h2 className="flex items-baseline justify-between gap-2 text-sm font-semibold first-letter:uppercase">
               {formatLong(date)}
-              {date === now && <span className="text-xs font-medium tracking-wide text-primary normal-case">oggi</span>}
+              {date === now && (
+                // Oggi cerchiato a matita blu, come sul diario.
+                <span className="relative mr-3 text-xs font-semibold tracking-wide text-pencil-blue normal-case">
+                  oggi
+                  <PencilCircle />
+                </span>
+              )}
             </h2>
             {holiday ? (
               <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{holiday.name}</p>
@@ -224,11 +231,12 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
           aria-label={done ? 'Fatta: tocca per annullare' : 'Segna come fatta'}
           title={done ? 'Fatta' : 'Segna come fatta'}
           className={cn(
-            'grid size-9 shrink-0 place-items-center self-center rounded-full border-2 transition-colors',
-            done ? 'border-done bg-done text-background' : past ? 'border-warn text-warn' : 'border-border text-muted-foreground/50 hover:text-done',
+            'relative grid size-9 shrink-0 place-items-center self-center rounded-full border-2 transition-colors',
+            done ? 'border-border text-pencil-blue' : past ? 'border-warn text-warn' : 'border-border text-muted-foreground/50 hover:text-done',
           )}
         >
-          <DoneIcon className="size-5" />
+          {/* Fatta: la spunta a matita blu, che esce un po' dal cerchio come quella del prof. */}
+          {done ? <PencilTick className="absolute -top-1.5 left-0.5 size-8" /> : <DoneIcon className="size-5" />}
         </button>
       )}
     </div>

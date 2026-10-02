@@ -100,6 +100,15 @@
     </script>
   </head>
   <body>
+    <!-- La grana del segno a mano: grafite sul tema chiaro, gessetto su quello scuro. -->
+    <svg width="0" height="0" class="absolute" aria-hidden="true">
+      <filter id="chalk-grain" x="-10%" y="-60%" width="120%" height="220%">
+        <feTurbulence type="fractalNoise" baseFrequency=".95" numOctaves="3" seed="9" result="noise" />
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.6" result="moved" />
+        <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -3.4 2.5" result="specks" />
+        <feComposite in="moved" in2="specks" operator="in" />
+      </filter>
+    </svg>
     <div class="mx-auto max-w-5xl px-4">
       <header class="flex items-center justify-between gap-3 py-4">
         <a href="/" class="flex items-center gap-2 font-heading text-lg font-bold tracking-tight">
@@ -114,7 +123,11 @@
           <div class="space-y-6">
             <p class="text-sm font-semibold tracking-wide text-pencil-red uppercase">Per docenti · gratis · senza registrazione</p>
             <h1 class="font-heading text-4xl font-extrabold tracking-tight text-balance md:text-5xl">
-              Il piano di lavoro del docente, lezione per lezione.
+              Il piano di lavoro del docente,
+              <span class="pencil-underline"
+                >lezione per lezione.<svg viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M3 9C50 5 120 4 197 6" /></svg
+              ></span>
             </h1>
             <p class="text-lg text-muted-foreground">
               Inserisci il programma e l'orario delle tue classi. ProfClick conta le ore vere dell'anno, tolte festività e vacanze, ti propone dove mettere
