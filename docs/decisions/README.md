@@ -19,3 +19,4 @@ Una decisione superata non si cancella: si scrive un nuovo ADR che la sostituisc
 | [0011](0011-riunioni.md) | Riunioni con le cose da preparare e il riepilogo della classe | Accettata |
 | [0012](0012-anni-precedenti.md) | Programma copiato da un'altra classe; anni precedenti in archivio | Accettata |
 | [0013](0013-programma-come-testo.md) | Programma svolto e piano di lavoro come testo da incollare | Accettata |
+| [0014](0014-filtro-e-ora-di-inizio.md) | Classi da vedere nella settimana; ora d'inizio facoltativa | Accettata |

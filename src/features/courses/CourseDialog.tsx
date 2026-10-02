@@ -18,6 +18,7 @@ type Draft = Omit<Course, 'updatedAt'>
 type ScheduleMode = 'giorni' | 'lezioni'
 
 const DAYS = [1, 2, 3, 4, 5, 6]
+const START_HOURS = [1, 2, 3, 4, 5, 6, 7, 8]
 
 function blank(order: number, color: number, minorWeight: number): Draft {
   return {
@@ -37,7 +38,8 @@ function blank(order: number, color: number, minorWeight: number): Draft {
 
 /** Da giorni a lezioni in ordine e viceversa, senza perdere ore e laboratorio. */
 function convert(schedule: ScheduleSlot[], to: ScheduleMode): ScheduleSlot[] {
-  if (to === 'lezioni') return [...schedule].sort((a, b) => (a.day ?? 9) - (b.day ?? 9)).map((s) => ({ ...s, day: null }))
+  // Senza giorno, l'ora d'inizio non ha più senso.
+  if (to === 'lezioni') return [...schedule].sort((a, b) => (a.day ?? 9) - (b.day ?? 9)).map((s) => ({ day: null, hours: s.hours, lab: s.lab }))
   return schedule.slice(0, 6).map((s, i) => ({ ...s, day: i + 1 }))
 }
 
@@ -189,6 +191,21 @@ function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: ()
                     className="text-center"
                     aria-label={`Ore di ${weekdayName(day)}`}
                   />
+                  <select
+                    value={slot?.start ?? ''}
+                    disabled={!slot}
+                    onChange={(e) => setDay(day, { start: Number(e.target.value) || undefined })}
+                    className="h-7 rounded-md border border-input bg-transparent px-1 text-center text-xs text-muted-foreground disabled:opacity-40"
+                    aria-label={`Ora d'inizio di ${weekdayName(day)}`}
+                    title="Da che ora di scuola, se vuoi: le lezioni del giorno vanno in ordine"
+                  >
+                    <option value="">ora</option>
+                    {START_HOURS.map((h) => (
+                      <option key={h} value={h}>
+                        {h}ª ora
+                      </option>
+                    ))}
+                  </select>
                   <LabToggle on={slot?.lab ?? false} disabled={!slot} onClick={() => setDay(day, { lab: !slot?.lab })} />
                 </div>
               )
@@ -240,6 +257,7 @@ function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: ()
         )}
         <p className="text-xs text-muted-foreground">
           {weeklyHours(asCourse)} ore a settimana. <strong>ITP</strong>: ore in laboratorio o in compresenza, dove vanno le prove pratiche.
+          {mode === 'giorni' && " L'ora d'inizio è facoltativa: mette in ordine le lezioni della giornata."}
         </p>
 
         {askFrom && (

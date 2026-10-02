@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
-import { formatHours } from '@/lib/ui'
+import { courseColor, formatHours } from '@/lib/ui'
 import { AlertIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, MeetingIcon, PlusIcon, PrepIcon } from '@/components/icons'
 import { PencilCircle, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,7 @@ import { currentPeriod, floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn
 import { addDays, daysBetween, formatLong, formatRange, formatShort, type ISODate, startOfWeek, today, weekday } from '@/core/dates'
 import { periodGrades } from '@/core/grading'
 import { meetingsOn, openMeetingPrep } from '@/core/meetings'
-import { GRADE_LABELS, meetingLabel } from '@/core/model'
+import { type Course, courseLabel, GRADE_LABELS, meetingLabel } from '@/core/model'
 import { openPrep } from '@/core/prep'
 import { CourseDialog } from '@/features/courses/CourseDialog'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
@@ -18,6 +18,7 @@ import { MeetingDialog } from '@/features/meetings/MeetingDialog'
 import { MeetingCard } from '@/features/meetings/MeetingsPage'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
+import { useHiddenCourses } from '@/state/weekFilter'
 
 export default function WeekPage() {
   const { data, apply } = useData()
@@ -28,16 +29,22 @@ export default function WeekPage() {
   const [creating, setCreating] = useState(false)
   const [meetingOpen, setMeetingOpen] = useState<string | null>(null)
   const courses = sortedCourses(data)
+  const { hidden, toggle, showAll } = useHiddenCourses()
+  const shown = (slot: LessonSlot) => !hidden.has(slot.courseId)
   const thisWeek = monday === startOfWeek(weekday(now) === 7 ? addDays(now, 1) : now)
 
-  const days = Array.from({ length: 6 }, (_, i) => addDays(monday, i)).map((date) => ({
-    date,
-    holiday: data.year ? holidayOn(data.year, date) : undefined,
-    slots: slotsOn(data, date),
-    meetings: meetingsOn(data, date),
-  }))
-  const floating = floatingSlotsOfWeek(data, monday)
-  const hasSaturday = days[5].slots.length > 0 || days[5].meetings.length > 0 || courses.some((c) => c.schedule.some((s) => s.day === 6))
+  const days = Array.from({ length: 6 }, (_, i) => addDays(monday, i)).map((date) => {
+    const all = slotsOn(data, date)
+    return {
+      date,
+      holiday: data.year ? holidayOn(data.year, date) : undefined,
+      slots: all.filter(shown),
+      hiddenSlots: all.length - all.filter(shown).length,
+      meetings: meetingsOn(data, date),
+    }
+  })
+  const floating = floatingSlotsOfWeek(data, monday).filter(shown)
+  const hasSaturday = days[5].slots.length + days[5].hiddenSlots > 0 || days[5].meetings.length > 0 || courses.some((c) => c.schedule.some((s) => s.day === 6))
   const unconfirmed = [...days.flatMap((d) => d.slots), ...floating].filter(
     (s) => s.date < now && s.lesson?.activities.length && !s.lesson.done && !s.lesson.cancelled,
   )
@@ -84,7 +91,9 @@ export default function WeekPage() {
         </Link>
       )}
 
-      {thisWeek && <Alerts />}
+      {courses.length > 1 && <CourseFilter courses={courses} hidden={hidden} onToggle={toggle} onShowAll={showAll} />}
+
+      {thisWeek && <Alerts hidden={hidden} />}
 
       {unconfirmed.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn/10 p-3">
@@ -116,7 +125,7 @@ export default function WeekPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots, meetings }) => (
+        {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots, hiddenSlots, meetings }) => (
           <section key={date} className="space-y-2">
             <h2 className="flex items-baseline justify-between gap-2 text-sm font-semibold first-letter:uppercase">
               {formatLong(date)}
@@ -131,7 +140,11 @@ export default function WeekPage() {
             {holiday ? (
               <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{holiday.name}</p>
             ) : slots.length === 0 ? (
-              meetings.length === 0 && <p className="px-1 text-sm text-muted-foreground">Nessuna lezione</p>
+              meetings.length === 0 && (
+                <p className="px-1 text-sm text-muted-foreground">
+                  {hiddenSlots === 0 ? 'Nessuna lezione' : hiddenSlots === 1 ? 'Una lezione di una classe nascosta' : `${hiddenSlots} lezioni di classi nascoste`}
+                </p>
+              )
             ) : (
               slots.map((slot) => (
                 <LessonCard
@@ -150,7 +163,7 @@ export default function WeekPage() {
         ))}
       </div>
 
-      {thisWeek && <PrepList />}
+      {thisWeek && <PrepList hidden={hidden} />}
 
       <LessonDialog courseId={open?.courseId ?? ''} date={open?.date ?? null} onClose={() => setOpen(null)} />
       <MeetingDialog open={meetingOpen} onClose={() => setMeetingOpen(null)} />
@@ -171,11 +184,13 @@ interface PrepRow {
 }
 
 /** Il materiale da preparare per le lezioni e le riunioni delle prossime settimane, con quando serve. */
-function PrepList() {
+function PrepList({ hidden }: { hidden: Set<string> }) {
   const { data, apply } = useData()
   const now = today()
   const rows: PrepRow[] = [
-    ...openPrep(data, now).map(({ course, item, due }) => ({
+    ...openPrep(data, now)
+      .filter(({ course }) => !hidden.has(course.id))
+      .map(({ course, item, due }) => ({
       id: item.id,
       text: item.text,
       due,
@@ -232,6 +247,47 @@ function PrepList() {
   )
 }
 
+/** "2ª ora", o "2ª–3ª ora" per una lezione di due ore. */
+function schoolHours(start: number, hours: number): string {
+  const end = start + Math.ceil(hours) - 1
+  return end > start ? `${start}ª–${end}ª ora` : `${start}ª ora`
+}
+
+/** Le classi da vedere nella settimana: si accendono e si spengono con un tocco. */
+function CourseFilter({ courses, hidden, onToggle, onShowAll }: { courses: Course[]; hidden: Set<string>; onToggle: (id: string) => void; onShowAll: () => void }) {
+  const anyHidden = courses.some((c) => hidden.has(c.id))
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Classi da vedere">
+      {courses.map((course) => {
+        const on = !hidden.has(course.id)
+        return (
+          <button
+            key={course.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onToggle(course.id)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+              on ? 'bg-card text-foreground shadow-xs' : 'border-dashed text-muted-foreground line-through hover:text-foreground',
+            )}
+          >
+            <span
+              className="size-2.5 shrink-0 rounded-full border-2"
+              style={{ borderColor: courseColor(course), background: on ? courseColor(course) : 'transparent' }}
+            />
+            {courseLabel(course)}
+          </button>
+        )
+      })}
+      {anyHidden && (
+        <button type="button" onClick={onShowAll} className="px-1.5 text-xs font-medium text-primary hover:underline">
+          Mostra tutte
+        </button>
+      )}
+    </div>
+  )
+}
+
 function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; past: boolean; onOpen: () => void; onToggleDone: () => void }) {
   const { data } = useData()
   const course = data.courses[slot.courseId]
@@ -256,7 +312,7 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
           <CourseName course={course} />
           <span className="shrink-0 text-xs font-normal text-muted-foreground">
             {slot.floating && `Lezione ${slot.index} · `}
-            {formatHours(slot.hours)}
+            {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
             {slot.lab && ' · ITP'}
           </span>
         </div>
@@ -292,12 +348,13 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
 }
 
 /** Le classi a cui mancano voti nel periodo in corso, con cosa manca. */
-function Alerts() {
+function Alerts({ hidden }: { hidden: Set<string> }) {
   const { data } = useData()
   const now = today()
   const period = data.year ? currentPeriod(data.year, now) : undefined
   if (!period) return null
   const alerts = sortedCourses(data)
+    .filter((course) => !hidden.has(course.id))
     .map((course) => ({ course, grades: periodGrades(data, course, period, now) }))
     .filter((a) => a.grades.status !== 'ok')
   if (alerts.length === 0) return null

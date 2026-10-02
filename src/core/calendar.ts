@@ -20,6 +20,8 @@ export interface LessonSlot {
   floating: boolean
   /** Posizione nella settimana, da 1: "lezione 2". */
   index: number
+  /** L'ora di scuola in cui inizia, se indicata nell'orario. */
+  start?: number
   /** Il piano di quel giorno, se ce n'è uno. */
   lesson?: Lesson
 }
@@ -29,6 +31,7 @@ interface DaySlot {
   lab: boolean
   floating: boolean
   index: number
+  start?: number
 }
 
 /** La settimana tipo di un orario, giorno per giorno. */
@@ -38,7 +41,14 @@ export function weekPattern(schedule: ScheduleSlot[]): Map<number, DaySlot> {
   for (const slot of schedule) {
     if (slot.day === null || slot.hours <= 0) continue
     const current = pattern.get(slot.day)
-    pattern.set(slot.day, { hours: (current?.hours ?? 0) + slot.hours, lab: Boolean(current?.lab) || slot.lab, floating: false, index: 0 })
+    const start = Math.min(current?.start ?? Infinity, slot.start ?? Infinity)
+    pattern.set(slot.day, {
+      hours: (current?.hours ?? 0) + slot.hours,
+      lab: Boolean(current?.lab) || slot.lab,
+      floating: false,
+      index: 0,
+      ...(start < Infinity && { start }),
+    })
   }
   let day = 1
   for (const slot of schedule) {
@@ -104,9 +114,11 @@ export function sortedCourses(data: ProfclickData): Course[] {
 
 /** Tutte le lezioni con un giorno vero, di tutte le classi, in un giorno. */
 export function slotsOn(data: ProfclickData, date: ISODate): LessonSlot[] {
+  // Con l'ora d'inizio, la giornata va in ordine; senza, le classi restano nel loro ordine, dopo.
   return sortedCourses(data)
     .flatMap((c) => courseSlots(data, c, date, date))
     .filter((s) => !s.floating)
+    .sort((a, b) => (a.start ?? 99) - (b.start ?? 99))
 }
 
 /** Le lezioni senza giorno fisso della settimana che inizia dal lunedì indicato. */

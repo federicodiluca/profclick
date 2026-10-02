@@ -62,6 +62,8 @@ export interface ScheduleSlot {
   hours: number
   /** In laboratorio o in compresenza con l'ITP: il posto giusto per le prove pratiche. */
   lab: boolean
+  /** A che ora di scuola inizia (1 = prima ora), se si vuole: serve solo a mettere in ordine la giornata. */
+  start?: number
 }
 
 /** Un orario che valeva fino a un certo giorno: nelle prime settimane l'orario cambia spesso. */
@@ -259,7 +261,14 @@ type Loose<T> = Partial<T> & Record<string, unknown>
 
 /** L'orario delle prime versioni era un oggetto giorno → ore. */
 function normalizeSchedule(raw: unknown): ScheduleSlot[] {
-  if (Array.isArray(raw)) return raw.map((s: Loose<ScheduleSlot>) => ({ day: s.day ?? null, hours: Number(s.hours) || 0, lab: Boolean(s.lab) }))
+  if (Array.isArray(raw)) {
+    return raw.map((s: Loose<ScheduleSlot>) => ({
+      day: s.day ?? null,
+      hours: Number(s.hours) || 0,
+      lab: Boolean(s.lab),
+      ...(Number(s.start) > 0 && { start: Number(s.start) }),
+    }))
+  }
   if (raw && typeof raw === 'object') {
     return Object.entries(raw as Record<string, number>)
       .filter(([, h]) => h)
@@ -393,6 +402,7 @@ export function scheduleAt(course: Course, date: ISODate): ScheduleSlot[] {
   return course.pastSchedules.find((p) => date <= p.until)?.schedule ?? course.schedule
 }
 
+/** Stesse lezioni negli stessi giorni: l'ora d'inizio non conta, perché non sposta il piano. */
 export function sameSchedule(a: ScheduleSlot[], b: ScheduleSlot[]): boolean {
   const key = (s: ScheduleSlot[]) => JSON.stringify(s.filter((x) => x.hours > 0).map((x) => [x.day, x.hours, x.lab]))
   return key(a) === key(b)

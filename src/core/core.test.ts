@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { addActivity, cancelAndShift, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
-import { courseSlots, floatingSlotsOfWeek } from './calendar'
+import { courseSlots, floatingSlotsOfWeek, slotsOn } from './calendar'
 import { easter, startOfWeek, weekday } from './dates'
 import { periodGrades, targetGrades } from './grading'
 import { parseProgram } from './importText'
 import { classSummary, defaultPrep, meetingPeriod, openMeetingPrep, summaryText, updateDefaultPrep, wasCoordinator } from './meetings'
 import { mergeData, sameData } from './merge'
-import { type Course, emptyData, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, type Topic } from './model'
+import { type Course, emptyData, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
 import { topicProgress } from './progress'
 import { assessmentTypes, proposePlan } from './proposal'
 import { sampleData } from './sample'
@@ -104,6 +104,21 @@ describe('anno scolastico e lezioni', () => {
     ])
     // Una festività in settimana toglie una lezione: l'8 dicembre è martedì, la seconda.
     expect(floatingSlotsOfWeek(data, '2026-12-07').map((s) => s.index)).toEqual([1])
+  })
+
+  it("con l'ora d'inizio la giornata va in ordine, e cambiarla non sposta il piano", () => {
+    let data = base()
+    data = saveCourse({ ...course, id: 'c2', className: '4B', order: 1, schedule: [{ day: 1, hours: 1, lab: false, start: 1 }] })(data)
+    // La classe senza ora va dopo quella che ce l'ha.
+    expect(slotsOn(data, '2026-09-28').map((s) => s.courseId)).toEqual(['c2', 'c1'])
+    data = saveCourse({ ...course, schedule: [{ day: 1, hours: 2, lab: false, start: 3 }, ...course.schedule.slice(1)] })(data)
+    data = saveCourse({ ...course, id: 'c2', className: '4B', order: 1, schedule: [{ day: 1, hours: 1, lab: false, start: 5 }] })(data)
+    expect(slotsOn(data, '2026-09-28').map((s) => [s.courseId, s.start])).toEqual([
+      ['c1', 3],
+      ['c2', 5],
+    ])
+    expect(sameSchedule(course.schedule, data.courses.c1.schedule)).toBe(true)
+    expect(normalizeData(data).courses.c1.schedule[0]).toEqual({ day: 1, hours: 2, lab: false, start: 3 })
   })
 
   it('legge i dati delle prime versioni', () => {
