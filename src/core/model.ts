@@ -176,6 +176,36 @@ export function isMinor(a: { weight: number }): boolean {
   return a.weight < 100
 }
 
+// --- Riunioni (ADR 0011) ----------------------------------------------------------------
+
+export type MeetingKind = 'cdc' | 'scrutinio' | 'glo' | 'collegio' | 'dipartimento' | 'corso' | 'altro'
+
+export const MEETING_KINDS: MeetingKind[] = ['cdc', 'scrutinio', 'glo', 'collegio', 'dipartimento', 'corso', 'altro']
+
+/** Una cosa da preparare per una riunione. */
+export interface MeetingPrep {
+  id: string
+  text: string
+  done: boolean
+}
+
+/** Consiglio di classe, scrutinio, collegio, corso: gli impegni del pomeriggio. */
+export interface Meeting extends Stamped {
+  id: string
+  kind: MeetingKind
+  date: ISODate
+  /** "15:00"; vuoto se l'ora non conta o non si sa ancora. */
+  time: string
+  /** Il nome della classe ("3J"), per consiglio, scrutinio e GLO; null per le altre. */
+  className: string | null
+  /** "Corso sulla sicurezza", "Collegio di inizio anno"; vuoto = il nome del tipo. */
+  title: string
+  /** Coordinatore di quella classe: aggiunge le sue cose da preparare. */
+  coordinator: boolean
+  prep: MeetingPrep[]
+  notes: string
+}
+
 // --- Il documento -----------------------------------------------------------------------
 
 export interface ProfclickData {
@@ -184,6 +214,7 @@ export interface ProfclickData {
   courses: Record<string, Course>
   topics: Record<string, Topic>
   lessons: Record<string, Lesson>
+  meetings: Record<string, Meeting>
   /**
    * Record cancellati, come "collezione:chiave" → quando. Servono all'unione: senza, un
    * record cancellato qui tornerebbe dall'altro dispositivo che lo ha ancora.
@@ -191,10 +222,10 @@ export interface ProfclickData {
   deleted: Record<string, number>
 }
 
-export type Collection = 'courses' | 'topics' | 'lessons'
+export type Collection = 'courses' | 'topics' | 'lessons' | 'meetings'
 
 export function emptyData(): ProfclickData {
-  return { schema: 1, year: null, courses: {}, topics: {}, lessons: {}, deleted: {} }
+  return { schema: 1, year: null, courses: {}, topics: {}, lessons: {}, meetings: {}, deleted: {} }
 }
 
 // --- Lettura tollerante -----------------------------------------------------------------
@@ -242,6 +273,10 @@ function normalizeLesson(l: Loose<Lesson>): Lesson {
   }
 }
 
+function normalizeMeeting(m: Loose<Meeting>): Meeting {
+  return { ...(m as Meeting), time: m.time ?? '', className: m.className ?? null, title: m.title ?? '', coordinator: Boolean(m.coordinator), prep: m.prep ?? [], notes: m.notes ?? '' }
+}
+
 function mapValues<T, U>(record: Record<string, T> | undefined, fn: (value: T) => U): Record<string, U> {
   return Object.fromEntries(Object.entries(record ?? {}).map(([k, v]) => [k, fn(v)]))
 }
@@ -255,12 +290,13 @@ export function normalizeData(raw: unknown): ProfclickData {
     courses: mapValues(value.courses as Record<string, Loose<Course>>, normalizeCourse),
     topics: mapValues(value.topics as Record<string, Loose<Topic>>, normalizeTopic),
     lessons: mapValues(value.lessons as Record<string, Loose<Lesson>>, normalizeLesson),
+    meetings: mapValues(value.meetings as Record<string, Loose<Meeting>>, normalizeMeeting),
     deleted: value.deleted ?? {},
   }
 }
 
 export function isEmptyData(data: ProfclickData): boolean {
-  return !data.year && Object.keys(data.courses).length === 0 && Object.keys(data.deleted).length === 0
+  return !data.year && Object.keys(data.courses).length === 0 && Object.keys(data.meetings).length === 0 && Object.keys(data.deleted).length === 0
 }
 
 // --- Etichette --------------------------------------------------------------------------
@@ -295,6 +331,27 @@ export function activityLabel(activity: Activity): string {
   const a = activity.assessment
   if (activity.kind !== 'verifica' || !a) return KIND_LABELS[activity.kind]
   return a.continues ? `${assessmentLabel(a)} (continua)` : assessmentLabel(a)
+}
+
+export const MEETING_LABELS: Record<MeetingKind, string> = {
+  cdc: 'Consiglio di classe',
+  scrutinio: 'Scrutinio',
+  glo: 'GLO',
+  collegio: 'Collegio docenti',
+  dipartimento: 'Dipartimento',
+  corso: 'Corso',
+  altro: 'Riunione',
+}
+
+/** Le riunioni che riguardano una classe. */
+export function isClassMeeting(kind: MeetingKind): boolean {
+  return kind === 'cdc' || kind === 'scrutinio' || kind === 'glo'
+}
+
+/** "Scrutinio 3J", "Corso sulla sicurezza", "Collegio docenti". */
+export function meetingLabel(m: Pick<Meeting, 'kind' | 'title' | 'className'>): string {
+  const base = m.title.trim() || MEETING_LABELS[m.kind]
+  return m.className && isClassMeeting(m.kind) ? `${base} ${m.className}` : base
 }
 
 export function courseLabel(course: Course): string {

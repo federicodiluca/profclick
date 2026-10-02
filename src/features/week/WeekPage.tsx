@@ -1,18 +1,21 @@
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
 import { formatHours } from '@/lib/ui'
-import { AlertIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon } from '@/components/icons'
+import { AlertIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, MeetingIcon, PlusIcon, PrepIcon } from '@/components/icons'
 import { PencilCircle, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
-import { markDone, setDone, togglePrep } from '@/core/actions'
+import { type Change, markDone, setDone, toggleMeetingPrep, togglePrep } from '@/core/actions'
 import { currentPeriod, floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses } from '@/core/calendar'
-import { addDays, daysBetween, formatLong, formatRange, formatShort, startOfWeek, today, weekday } from '@/core/dates'
+import { addDays, daysBetween, formatLong, formatRange, formatShort, type ISODate, startOfWeek, today, weekday } from '@/core/dates'
 import { periodGrades } from '@/core/grading'
-import { GRADE_LABELS } from '@/core/model'
+import { meetingsOn, openMeetingPrep } from '@/core/meetings'
+import { GRADE_LABELS, meetingLabel } from '@/core/model'
 import { openPrep } from '@/core/prep'
 import { CourseDialog } from '@/features/courses/CourseDialog'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
+import { MeetingDialog } from '@/features/meetings/MeetingDialog'
+import { MeetingCard } from '@/features/meetings/MeetingsPage'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 
@@ -23,6 +26,7 @@ export default function WeekPage() {
   const [monday, setMonday] = useState(() => startOfWeek(weekday(now) === 7 ? addDays(now, 1) : now))
   const [open, setOpen] = useState<{ courseId: string; date: string } | null>(null)
   const [creating, setCreating] = useState(false)
+  const [meetingOpen, setMeetingOpen] = useState<string | null>(null)
   const courses = sortedCourses(data)
   const thisWeek = monday === startOfWeek(weekday(now) === 7 ? addDays(now, 1) : now)
 
@@ -30,9 +34,10 @@ export default function WeekPage() {
     date,
     holiday: data.year ? holidayOn(data.year, date) : undefined,
     slots: slotsOn(data, date),
+    meetings: meetingsOn(data, date),
   }))
   const floating = floatingSlotsOfWeek(data, monday)
-  const hasSaturday = days[5].slots.length > 0 || courses.some((c) => c.schedule.some((s) => s.day === 6))
+  const hasSaturday = days[5].slots.length > 0 || days[5].meetings.length > 0 || courses.some((c) => c.schedule.some((s) => s.day === 6))
   const unconfirmed = [...days.flatMap((d) => d.slots), ...floating].filter(
     (s) => s.date < now && s.lesson?.activities.length && !s.lesson.done && !s.lesson.cancelled,
   )
@@ -104,7 +109,7 @@ export default function WeekPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots }) => (
+        {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots, meetings }) => (
           <section key={date} className="space-y-2">
             <h2 className="flex items-baseline justify-between gap-2 text-sm font-semibold first-letter:uppercase">
               {formatLong(date)}
@@ -119,7 +124,7 @@ export default function WeekPage() {
             {holiday ? (
               <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{holiday.name}</p>
             ) : slots.length === 0 ? (
-              <p className="px-1 text-sm text-muted-foreground">Nessuna lezione</p>
+              meetings.length === 0 && <p className="px-1 text-sm text-muted-foreground">Nessuna lezione</p>
             ) : (
               slots.map((slot) => (
                 <LessonCard
@@ -131,6 +136,9 @@ export default function WeekPage() {
                 />
               ))
             )}
+            {meetings.map((m) => (
+              <MeetingCard key={m.id} meeting={m} onOpen={() => setMeetingOpen(m.id)} />
+            ))}
           </section>
         ))}
       </div>
@@ -138,6 +146,7 @@ export default function WeekPage() {
       {thisWeek && <PrepList />}
 
       <LessonDialog courseId={open?.courseId ?? ''} date={open?.date ?? null} onClose={() => setOpen(null)} />
+      <MeetingDialog open={meetingOpen} onClose={() => setMeetingOpen(null)} />
     </div>
   )
 }
@@ -145,14 +154,47 @@ export default function WeekPage() {
 /** Quanti giorni prima conviene vedere il materiale da preparare. */
 const PREP_HORIZON_DAYS = 21
 
-/** Il materiale da preparare che serve nelle prossime settimane, con la data in cui serve. */
+interface PrepRow {
+  id: string
+  text: string
+  due: ISODate | null
+  toggle: Change
+  /** Per cosa serve: la classe e l'argomento, o la riunione. */
+  source: ReactNode
+}
+
+/** Il materiale da preparare per le lezioni e le riunioni delle prossime settimane, con quando serve. */
 function PrepList() {
   const { data, apply } = useData()
   const now = today()
-  const all = openPrep(data, now)
-  const soon = all.filter((p) => p.due && daysBetween(now, p.due) <= PREP_HORIZON_DAYS)
+  const rows: PrepRow[] = [
+    ...openPrep(data, now).map(({ course, item, due }) => ({
+      id: item.id,
+      text: item.text,
+      due,
+      toggle: togglePrep(course.id, item.id),
+      source: (
+        <>
+          <CourseName course={course} />
+          {item.topicId && data.topics[item.topicId] && ` per ${data.topics[item.topicId].title}`}
+        </>
+      ),
+    })),
+    ...openMeetingPrep(data, now).map(({ meeting, item, due }) => ({
+      id: item.id,
+      text: item.text,
+      due,
+      toggle: toggleMeetingPrep(meeting.id, item.id),
+      source: (
+        <span className="inline-flex items-center gap-1.5">
+          <MeetingIcon className="size-3.5" /> {meetingLabel(meeting)}
+        </span>
+      ),
+    })),
+  ]
+  const soon = rows.filter((r) => r.due && daysBetween(now, r.due) <= PREP_HORIZON_DAYS).sort((a, b) => a.due!.localeCompare(b.due!))
   if (soon.length === 0) return null
-  const later = all.length - soon.length
+  const later = rows.length - soon.length
 
   return (
     <section className="space-y-2">
@@ -160,26 +202,25 @@ function PrepList() {
         <PrepIcon className="size-4 text-warn" /> Da preparare
       </h2>
       <ul className="divide-y rounded-xl border bg-card">
-        {soon.map(({ course, item, due }) => (
-          <li key={item.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+        {soon.map((row) => (
+          <li key={row.id} className="flex items-center gap-3 px-3 py-2 text-sm">
             <input
               type="checkbox"
               checked={false}
-              onChange={() => apply(togglePrep(course.id, item.id))}
+              onChange={() => apply(row.toggle)}
               className="size-4 shrink-0 accent-[var(--done)]"
-              aria-label={`Pronto: ${item.text}`}
+              aria-label={`Pronto: ${row.text}`}
             />
             <span className="min-w-0 flex-1">
-              {item.text}
+              {row.text}
               <span className="block text-xs text-muted-foreground">
-                <CourseName course={course} /> · serve {due === now ? 'oggi' : `${formatShort(due!)}`}
-                {item.topicId && data.topics[item.topicId] && ` per ${data.topics[item.topicId].title}`}
+                {row.source} · serve {row.due === now ? 'oggi' : formatShort(row.due!)}
               </span>
             </span>
           </li>
         ))}
       </ul>
-      {later > 0 && <p className="text-xs text-muted-foreground">Altri {later} da preparare più avanti: li trovi negli Appunti di ogni classe.</p>}
+      {later > 0 && <p className="text-xs text-muted-foreground">Altri {later} da preparare più avanti: li trovi negli Appunti delle classi e nelle Riunioni.</p>}
     </section>
   )
 }

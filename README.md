@@ -27,7 +27,11 @@ come app (PWA). Le decisioni di progetto sono in [docs/decisions](docs/decisions
   con un tocco, senza ricostruire le lezioni passate.
 - **Da preparare**: slide, esercizi, laboratori, legati all'argomento; la settimana mostra
   quello che serve a breve.
-- **Calendario**: "Aggiungi a Google Calendar" per ogni verifica, o un file .ics con tutte.
+- **Riunioni**: consigli di classe, scrutini, GLO, collegi, dipartimenti e corsi, con le cose da
+  preparare già proposte per tipo (e quelle in più per il coordinatore). Compaiono nella settimana
+  e nel Da preparare; per consigli e scrutini c'è il riepilogo della classe ricavato dai dati (voti,
+  argomenti svolti, educazione civica), da copiare nel verbale.
+- **Calendario**: "Aggiungi a Google Calendar" per ogni verifica e riunione, o un file .ics con tutte.
 - **Proposta di piano** per periodo: argomenti e valutazioni sulle lezioni vuote, da applicare
   con un tocco.
 - **Settimana**: cosa fare in ogni classe, spunta di fatto, avvisi sui voti mancanti.
@@ -73,7 +77,7 @@ src/
   core/        logica pura e testata: calendario, voti, proposta, unione dei dati
   google/      login e chiamate a Drive
   state/       stato React e motore di sincronizzazione
-  features/    settimana · classi · classe (piano, programma, voti, appunti) · anno
+  features/    settimana · classi · classe (piano, programma, voti, appunti) · riunioni · anno
   components/  componenti condivisi e icone (ui/ = shadcn)
 public/privacy/  informativa privacy (pagina statica)
 docs/            decisioni (ADR) e logo per la schermata di consenso OAuth

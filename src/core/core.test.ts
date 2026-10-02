@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, cancelAndShift, changeSchedule, deleteCourse, saveCourse, saveTopics, setDone, setYear, undoTo } from './actions'
+import { addActivity, cancelAndShift, changeSchedule, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setDone, setYear, toggleMeetingPrep, undoTo } from './actions'
 import { courseSlots, floatingSlotsOfWeek } from './calendar'
 import { easter, startOfWeek, weekday } from './dates'
 import { periodGrades, targetGrades } from './grading'
 import { parseProgram } from './importText'
+import { classSummary, defaultPrep, meetingPeriod, openMeetingPrep, summaryText, updateDefaultPrep, wasCoordinator } from './meetings'
 import { mergeData, sameData } from './merge'
-import { type Course, emptyData, lessonKey, normalizeData, type ProfclickData, type Topic } from './model'
+import { type Course, emptyData, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, type Topic } from './model'
 import { topicProgress } from './progress'
 import { assessmentTypes, proposePlan } from './proposal'
 import { sampleData } from './sample'
@@ -443,5 +444,94 @@ describe('importazione: dettagli', () => {
     expect([a.type, a.weight, a.text]).toEqual(['teorico', 70, 'con domande'])
     expect([b.type, b.weight, b.text]).toEqual(['pratico', 75, 'con orale'])
     expect(c.text).toBe('')
+  })
+})
+
+const meeting = (id: string, extra: Partial<Meeting> = {}): Omit<Meeting, 'updatedAt'> => ({
+  id,
+  kind: 'cdc',
+  date: '2026-10-20',
+  time: '15:00',
+  className: '3A',
+  title: '',
+  coordinator: false,
+  prep: [],
+  notes: '',
+  ...extra,
+})
+
+describe('riunioni', () => {
+  it('nomi, cose da preparare proposte e coordinatore', () => {
+    let n = 0
+    const id = () => `x${n++}`
+    expect(meetingLabel(meeting('m'))).toBe('Consiglio di classe 3A')
+    expect(meetingLabel(meeting('m', { kind: 'corso', title: 'Corso sicurezza', className: null }))).toBe('Corso sicurezza')
+    const prep = defaultPrep('scrutinio', false, id)
+    expect(prep.map((p) => p.text)).toEqual(['Proposte di voto sul registro', 'Argomenti da recuperare per le insufficienze'])
+    // Diventando coordinatore si aggiungono le sue voci; quelle scritte a mano restano.
+    const mine = [...prep, { id: 'mia', text: 'Mia', done: false }]
+    const coord = updateDefaultPrep(mine, { kind: 'scrutinio', coordinator: false }, { kind: 'scrutinio', coordinator: true }, id)
+    expect(coord.map((p) => p.text)).toContain('Giudizi e verbale')
+    expect(coord.map((p) => p.text)).toContain('Mia')
+    const back = updateDefaultPrep(coord, { kind: 'scrutinio', coordinator: true }, { kind: 'collegio', coordinator: false }, id)
+    expect(back.map((p) => p.text)).toEqual(['Leggere i documenti della convocazione', 'Mia'])
+
+    let data = saveMeeting(meeting('a', { coordinator: true, date: '2026-10-20' }))(base())
+    data = saveMeeting(meeting('b', { kind: 'collegio', className: null, date: '2026-11-20' }))(data)
+    expect(wasCoordinator(data, '3A')).toBe(true)
+    expect(wasCoordinator(data, '4B')).toBe(false)
+  })
+
+  it('le cose da preparare scadono il giorno della riunione', () => {
+    let data = saveMeeting(meeting('a', { prep: [{ id: 'p', text: 'Verbale', done: false }] }))(base())
+    data = saveMeeting(meeting('old', { date: '2026-09-20', prep: [{ id: 'q', text: 'Vecchia', done: false }] }))(data)
+    expect(openMeetingPrep(data, '2026-09-29').map((p) => [p.item.text, p.due])).toEqual([['Verbale', '2026-10-20']])
+    data = toggleMeetingPrep('a', 'p')(data)
+    expect(openMeetingPrep(data, '2026-09-29')).toEqual([])
+  })
+
+  it('lo scrutinio guarda il periodo appena finito', () => {
+    const year = defaultSchoolYear(2026)
+    expect(meetingPeriod(year, 'scrutinio', '2027-02-05')?.id).toBe('p1')
+    expect(meetingPeriod(year, 'cdc', '2027-02-05')?.id).toBe('p2')
+    expect(meetingPeriod(year, 'scrutinio', '2027-06-15')?.id).toBe('p2')
+  })
+
+  it('riepilogo della classe dai dati', () => {
+    let data = addActivity('c1', '2026-10-05', { ...verifica('v', 'scritto'), topicIds: ['t1'] })(base())
+    data = setDone('c1', '2026-10-05', true)(data)
+    data = addActivity('c1', '2026-10-07', verifica('w', 'pratico'))(data)
+    const summary = classSummary(data, meeting('m', { kind: 'scrutinio', date: '2027-02-05' }))!
+    expect(summary.period.id).toBe('p1')
+    const [s] = summary.courses
+    expect(s.gradesDone).toBe(1)
+    expect(s.typesWithoutGrade).toEqual(['teorico', 'pratico'])
+    expect(s.topicsLeft).toEqual(['Algoritmi', 'Array'])
+    const text = summaryText(meeting('m', { kind: 'scrutinio', date: '2027-02-05' }), summary)
+    expect(text).toContain('Scrutinio 3A del 5 feb 2027 · 1° quadrimestre')
+    expect(text).toContain('3A · Informatica: 1 voto fatto su 5; senza voto: orale, pratico; 0 argomenti svolti su 2 (non svolti: Algoritmi, Array).')
+    // Collegio e classi che non ho: nessun riepilogo.
+    expect(classSummary(data, meeting('m', { kind: 'collegio' }))).toBeNull()
+    expect(classSummary(data, meeting('m', { className: '5C' }))).toBeNull()
+  })
+
+  it('si uniscono tra dispositivi, si annullano e vanno sul calendario con l ora', async () => {
+    const { googleCalendarLink, meetingEntry, toIcs } = await import('./calendarExport')
+    const start = saveMeeting(meeting('a'))(base())
+    vi.setSystemTime(new Date('2026-09-29T11:00:00Z'))
+    const phone = saveMeeting(meeting('b', { kind: 'collegio', className: null }))(start)
+    const pc = deleteMeeting('a')(start)
+    const merged = mergeData(phone, pc)
+    expect(Object.keys(merged.meetings)).toEqual(['b'])
+    vi.setSystemTime(new Date('2026-09-29T11:00:01Z'))
+    expect(Object.keys(undoTo(start)(merged).meetings)).toEqual(['a'])
+    expect(normalizeData(JSON.parse(JSON.stringify({ ...merged, meetings: undefined }))).meetings).toEqual({})
+
+    const entry = meetingEntry({ ...meeting('a', { prep: [{ id: 'p', text: 'Verbale', done: false }] }), updatedAt: 0 })
+    expect(googleCalendarLink(entry)).toContain('dates=20261020T150000%2F20261020T170000')
+    const ics = toIcs([entry], new Date('2026-09-29T10:00:00Z'))
+    expect(ics).toContain('DTSTART:20261020T150000')
+    expect(ics).toContain('DESCRIPTION:- Verbale')
+    expect(ics).toContain('TRANSP:OPAQUE')
   })
 })

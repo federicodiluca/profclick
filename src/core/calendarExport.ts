@@ -1,20 +1,33 @@
-// Le valutazioni sul calendario (ADR 0009), senza chiedere permessi su Google Calendar:
-// un collegamento che apre Calendar con l'evento già compilato, oppure un file .ics con
-// tutte le valutazioni dell'anno da importare in qualsiasi calendario.
+// Valutazioni e riunioni sul calendario (ADR 0009, 0011), senza chiedere permessi su Google
+// Calendar: un collegamento che apre Calendar con l'evento già compilato, oppure un file .ics
+// con tutte quelle dell'anno da importare in qualsiasi calendario.
 
 import { courseSlots, sortedCourses } from './calendar'
 import { addDays, type ISODate } from './dates'
-import { activityLabel, type Activity, type Course, courseLabel, type ProfclickData } from './model'
+import { sortedMeetings } from './meetings'
+import { activityLabel, type Activity, type Course, courseLabel, type Meeting, meetingLabel, type ProfclickData } from './model'
 
 export interface CalendarEntry {
   uid: string
   date: ISODate
+  /** "15:00" per un evento con l'ora; senza, l'evento è di un giorno intero. */
+  time?: string
   title: string
   details: string
 }
 
+/** Una riunione senza orario di fine: si segnano due ore. */
+const MEETING_HOURS = 2
+
 function compact(date: ISODate): string {
   return date.replaceAll('-', '')
+}
+
+/** "20261002T150000", nell'ora locale; con l'ora di fine che non passa la mezzanotte. */
+function dateTime(date: ISODate, time: string, plusHours = 0): string {
+  const [h, m] = time.split(':').map(Number)
+  const hours = Math.min(23, h + plusHours)
+  return `${compact(date)}T${String(hours).padStart(2, '0')}${String(hours === h + plusHours ? m : 59).padStart(2, '0')}00`
 }
 
 export function assessmentEntry(data: ProfclickData, course: Course, date: ISODate, activity: Activity): CalendarEntry {
@@ -27,12 +40,28 @@ export function assessmentEntry(data: ProfclickData, course: Course, date: ISODa
   }
 }
 
-/** Apre Google Calendar con un evento di un giorno intero già compilato. */
+export function meetingEntry(meeting: Meeting): CalendarEntry {
+  return {
+    uid: `${meeting.id}@profclick.federicodiluca.com`,
+    date: meeting.date,
+    time: meeting.time || undefined,
+    title: meetingLabel(meeting),
+    details: meeting.prep
+      .filter((p) => p.text.trim())
+      .map((p) => `- ${p.text}`)
+      .join('\n'),
+  }
+}
+
+/** Apre Google Calendar con l'evento già compilato: all'ora indicata o per il giorno intero. */
 export function googleCalendarLink(entry: CalendarEntry): string {
   const url = new URL('https://calendar.google.com/calendar/render')
   url.searchParams.set('action', 'TEMPLATE')
   url.searchParams.set('text', entry.title)
-  url.searchParams.set('dates', `${compact(entry.date)}/${compact(addDays(entry.date, 1))}`)
+  if (entry.time) {
+    url.searchParams.set('dates', `${dateTime(entry.date, entry.time)}/${dateTime(entry.date, entry.time, MEETING_HOURS)}`)
+    url.searchParams.set('ctz', 'Europe/Rome')
+  } else url.searchParams.set('dates', `${compact(entry.date)}/${compact(addDays(entry.date, 1))}`)
   if (entry.details) url.searchParams.set('details', entry.details)
   return url.toString()
 }
@@ -47,6 +76,10 @@ export function allAssessments(data: ProfclickData): CalendarEntry[] {
   )
 }
 
+export function allMeetings(data: ProfclickData): CalendarEntry[] {
+  return sortedMeetings(data).map(meetingEntry)
+}
+
 function escape(text: string): string {
   return text.replace(/[\\;,]/g, (c) => `\\${c}`).replace(/\n/g, '\\n')
 }
@@ -57,17 +90,19 @@ function escape(text: string): string {
  */
 export function toIcs(entries: CalendarEntry[], stamp: Date): string {
   const now = stamp.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//ProfClick//IT', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Verifiche ProfClick']
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//ProfClick//IT', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:ProfClick']
   for (const e of entries) {
     lines.push(
       'BEGIN:VEVENT',
       `UID:${e.uid}`,
       `DTSTAMP:${now}`,
-      `DTSTART;VALUE=DATE:${compact(e.date)}`,
-      `DTEND;VALUE=DATE:${compact(addDays(e.date, 1))}`,
+      // Con l'ora, nell'ora locale di chi importa; senza, un giorno intero che non occupa l'agenda.
+      ...(e.time
+        ? [`DTSTART:${dateTime(e.date, e.time)}`, `DTEND:${dateTime(e.date, e.time, MEETING_HOURS)}`]
+        : [`DTSTART;VALUE=DATE:${compact(e.date)}`, `DTEND;VALUE=DATE:${compact(addDays(e.date, 1))}`]),
       `SUMMARY:${escape(e.title)}`,
       ...(e.details ? [`DESCRIPTION:${escape(e.details)}`] : []),
-      'TRANSP:TRANSPARENT',
+      `TRANSP:${e.time ? 'OPAQUE' : 'TRANSPARENT'}`,
       'END:VEVENT',
     )
   }

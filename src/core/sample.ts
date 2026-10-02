@@ -1,10 +1,11 @@
-// Dati di esempio: due classi di informatica con il loro programma, le valutazioni previste
-// e un piano già proposto. Servono a provare ProfClick senza inserire niente e per gli
+// Dati di esempio: due classi di informatica con il loro programma, le valutazioni previste,
+// un piano già proposto e due riunioni. Servono a provare ProfClick senza inserire niente e per gli
 // screenshot.
 
-import { applyProposal, markDone, saveCourse, saveTopics, setYear } from './actions'
+import { applyProposal, markDone, saveCourse, saveMeeting, saveTopics, setYear } from './actions'
 import { courseSlots } from './calendar'
-import type { ISODate } from './dates'
+import { addDays, type ISODate, startOfWeek } from './dates'
+import { defaultPrep } from './meetings'
 import { type Course, emptyData, type GradeType, type ProfclickData } from './model'
 import { proposePlan } from './proposal'
 import { defaultSchoolYear, schoolYearStart } from './schoolYear'
@@ -105,5 +106,10 @@ export function sampleData(today: ISODate): ProfclickData {
     const past = courseSlots(data, data.courses[course.id], undefined, today).filter((s) => s.date < today && s.lesson)
     data = markDone(past)(data)
   }
+
+  // Un consiglio di classe da coordinatore tra due settimane e un collegio dopo.
+  const tuesday = addDays(startOfWeek(today), 15)
+  data = saveMeeting({ id: 'demo-m1', kind: 'cdc', date: tuesday, time: '15:00', className: '3A', title: '', coordinator: true, prep: defaultPrep('cdc', true, ((i) => () => `demo-m1-p${i++}`)(0)), notes: '' })(data)
+  data = saveMeeting({ id: 'demo-m2', kind: 'collegio', date: addDays(tuesday, 2), time: '16:30', className: null, title: '', coordinator: false, prep: defaultPrep('collegio', false, () => 'demo-m2-p0'), notes: '' })(data)
   return data
 }

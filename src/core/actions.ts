@@ -3,13 +3,14 @@
 
 import { courseSlots, isAvailable } from './calendar'
 import { addDays, type ISODate } from './dates'
-import { tombstone } from './merge'
+import { COLLECTIONS, tombstone } from './merge'
 import {
   type Activity,
   type Collection,
   type Course,
   type Lesson,
   lessonKey,
+  type Meeting,
   type PastSchedule,
   type ProfclickData,
   sameSchedule,
@@ -255,7 +256,7 @@ export function applyProposal(courseId: string, lessons: ProposedLesson[], newId
 export function undoTo(before: ProfclickData): Change {
   return (current) => {
     let next = current
-    for (const collection of ['courses', 'topics', 'lessons'] as const) {
+    for (const collection of COLLECTIONS) {
       const was = before[collection] as Record<string, Stamped>
       const is = current[collection] as Record<string, Stamped>
       for (const key of new Set([...Object.keys(was), ...Object.keys(is)])) {
@@ -275,5 +276,23 @@ export function togglePrep(courseId: string, itemId: string): Change {
     const course = data.courses[courseId]
     if (!course) return data
     return put(data, 'courses', courseId, { ...course, prep: course.prep.map((p) => (p.id === itemId ? { ...p, done: !p.done } : p)) })
+  }
+}
+
+// --- Riunioni ---------------------------------------------------------------------------
+
+export function saveMeeting(meeting: Omit<Meeting, 'updatedAt'>): Change {
+  return (data) => put(data, 'meetings', meeting.id, { ...meeting, updatedAt: 0 })
+}
+
+export function deleteMeeting(meetingId: string): Change {
+  return (data) => remove(data, 'meetings', [meetingId])
+}
+
+export function toggleMeetingPrep(meetingId: string, itemId: string): Change {
+  return (data) => {
+    const meeting = data.meetings[meetingId]
+    if (!meeting) return data
+    return put(data, 'meetings', meetingId, { ...meeting, prep: meeting.prep.map((p) => (p.id === itemId ? { ...p, done: !p.done } : p)) })
   }
 }

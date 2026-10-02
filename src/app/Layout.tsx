@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link, useRoute } from 'wouter'
-import { ClassesIcon, type IconComponent, WeekIcon, YearIcon } from '@/components/icons'
+import { ClassesIcon, type IconComponent, MeetingIcon, WeekIcon, YearIcon } from '@/components/icons'
 import { InstallButton } from '@/components/InstallButton'
 import { SyncButton } from '@/components/SyncButton'
 import { ThemeButton } from '@/components/ThemeButton'
@@ -35,6 +35,9 @@ export function Layout({ children }: { children: ReactNode }) {
       </NavLink>
       <NavLink to="/classi" icon={ClassesIcon}>
         Classi
+      </NavLink>
+      <NavLink to="/riunioni" icon={MeetingIcon}>
+        Riunioni
       </NavLink>
       <NavLink to="/anno" icon={YearIcon}>
         Anno

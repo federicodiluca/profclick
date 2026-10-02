@@ -202,6 +202,17 @@ export function ClassesIcon(props: IconProps) {
   )
 }
 
+/** Riunioni: tavolo con le sedie intorno, visto dall'alto come i banchi delle classi. */
+export function MeetingIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="6" y="7.5" width="12" height="9" rx="4.5" {...tint} />
+      <rect x="6" y="7.5" width="12" height="9" rx="4.5" />
+      <path d="M8.5 4h2.5M13 4h2.5M8.5 20h2.5M13 20h2.5M2.5 10.5v3M21.5 10.5v3" />
+    </Icon>
+  )
+}
+
 /** Programma: elenco con sotto-punti. */
 export function ProgramIcon(props: IconProps) {
   return (
@@ -304,6 +315,17 @@ export function PasteIcon(props: IconProps) {
       <path d="M9 4.5H6.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-13a2 2 0 0 0-2-2H15" />
       <rect x="9" y="2.5" width="6" height="4" rx="1" />
       <path d="M8.5 11h7M8.5 14.5h7M8.5 18h4" />
+    </Icon>
+  )
+}
+
+/** Due fogli sovrapposti: copia il testo. */
+export function CopyIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="8.5" y="8.5" width="12" height="12.5" rx="2" {...tint} />
+      <rect x="8.5" y="8.5" width="12" height="12.5" rx="2" />
+      <path d="M15.5 8.5V5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8.5a2 2 0 0 0 2 2h3" />
     </Icon>
   )
 }

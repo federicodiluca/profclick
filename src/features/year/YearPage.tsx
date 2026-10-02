@@ -5,8 +5,8 @@ import { ShareApp } from '@/components/ShareApp'
 import { CalendarAddIcon, DownloadIcon, GoogleIcon, PlusIcon, TrashIcon, UploadIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { deleteCourse, setYear } from '@/core/actions'
-import { allAssessments, toIcs } from '@/core/calendarExport'
+import { deleteCourse, deleteMeeting, setYear } from '@/core/actions'
+import { allAssessments, allMeetings, toIcs } from '@/core/calendarExport'
 import { formatDay } from '@/core/dates'
 import { normalizeData, type SchoolYear } from '@/core/model'
 import { PERIOD_PRESETS, type PeriodPreset, presetPeriods } from '@/core/schoolYear'
@@ -19,6 +19,7 @@ export default function YearPage() {
   const year = data.year!
   const update = (patch: Partial<SchoolYear>) => apply(setYear({ ...year, ...patch }))
   const demoCourses = Object.keys(data.courses).filter((id) => id.startsWith('demo-'))
+  const demoMeetings = Object.keys(data.meetings).filter((id) => id.startsWith('demo-'))
 
   return (
     <div className="space-y-10">
@@ -99,7 +100,10 @@ export default function YearPage() {
       {demoCourses.length > 0 && (
         <Section title="Dati di esempio">
           <p className="text-sm text-muted-foreground">Le classi di esempio servono solo a provare. Quando sei pronto, toglile e aggiungi le tue.</p>
-          <Button variant="destructive" onClick={() => applyWithUndo((d) => demoCourses.reduce((x, id) => deleteCourse(id)(x), d), 'Classi di esempio rimosse')}>
+          <Button variant="destructive" onClick={() => applyWithUndo(
+                (d) => demoMeetings.reduce((x, id) => deleteMeeting(id)(x), demoCourses.reduce((x, id) => deleteCourse(id)(x), d)),
+                'Classi di esempio rimosse',
+              )}>
             <TrashIcon /> Rimuovi le classi di esempio
           </Button>
         </Section>
@@ -164,10 +168,12 @@ function DriveSection() {
   )
 }
 
-/** Tutte le verifiche in un file .ics, da importare in Google Calendar (ADR 0009). */
+/** Tutte le verifiche e le riunioni in un file .ics, da importare in Google Calendar (ADR 0009, 0011). */
 function CalendarSection() {
   const { data } = useData()
-  const entries = allAssessments(data)
+  const assessments = allAssessments(data)
+  const meetings = allMeetings(data)
+  const entries = [...assessments, ...meetings]
   if (entries.length === 0) return null
 
   const download = () => {
@@ -175,20 +181,21 @@ function CalendarSection() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'profclick-verifiche.ics'
+    a.download = 'profclick.ics'
     a.click()
     URL.revokeObjectURL(url)
   }
 
   return (
-    <Section title="Verifiche sul calendario">
+    <Section title="Verifiche e riunioni sul calendario">
       <p className="text-sm text-muted-foreground">
-        Le {entries.length} valutazioni in programma, come eventi di un giorno intero. In Google Calendar: Impostazioni, Importa. Importandolo di nuovo
-        dopo aver cambiato il piano, gli eventi si aggiornano invece di duplicarsi. Per una sola verifica c'è <em>Aggiungi a Google Calendar</em> nella
-        lezione.
+        {assessments.length === 1 ? 'La valutazione' : `Le ${assessments.length} valutazioni`} in programma, come eventi di un giorno intero
+        {meetings.length > 0 && `, e ${meetings.length === 1 ? 'la riunione' : `le ${meetings.length} riunioni`}, all'ora indicata`}. In Google
+        Calendar: Impostazioni, Importa. Importandolo di nuovo dopo aver cambiato il piano, gli eventi si aggiornano invece di duplicarsi. Per una
+        sola verifica o riunione c'è <em>Aggiungi a Google Calendar</em> nella lezione o nella riunione.
       </p>
       <Button variant="outline" onClick={download}>
-        <CalendarAddIcon /> Scarica le verifiche (.ics)
+        <CalendarAddIcon /> Scarica il calendario (.ics)
       </Button>
     </Section>
   )
