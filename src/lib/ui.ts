@@ -17,3 +17,8 @@ export function formatHours(hours: number): string {
   const rounded = Math.round(hours * 10) / 10
   return `${String(rounded).replace('.', ',')} ${rounded === 1 ? 'ora' : 'ore'}`
 }
+
+/** I voti di un periodo, con le stesse parole ovunque: "2 fatti, 4 in calendario su 5". */
+export function gradesLine(grades: { done: number; full: unknown[]; target: number }): string {
+  return `${grades.done} ${grades.done === 1 ? 'fatto' : 'fatti'}, ${grades.full.length} in calendario su ${grades.target}`
+}

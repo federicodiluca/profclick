@@ -1,7 +1,7 @@
 import { createElement, useState } from 'react'
 import { toast } from 'sonner'
 import { ActivityLine, CourseName, Segmented, Toggle } from '@/components/bits'
-import { CalendarAddIcon, CancelledIcon, DoneIcon, NoteIcon, RegisterIcon, ShiftIcon, TrashIcon } from '@/components/icons'
+import { CalendarAddIcon, CancelledIcon, DoneIcon, type IconComponent, NoteIcon, RegisterIcon, ShiftIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -23,19 +23,27 @@ import { useData } from '@/state/data'
 /** Peso segnaposto del voto minore: al momento di aggiungerlo diventa quello proposto dalla classe. */
 const MINOR = -1
 
-/** I pulsanti per aggiungere un'attività: le valutazioni nascono già del tipo giusto. */
-const QUICK_ADD: { label: string; kind: ActivityKind; assessment?: Assessment }[] = [
+type QuickAdd = { label: string; kind: ActivityKind; assessment?: Assessment }
+
+/**
+ * I pulsanti per aggiungere un'attività: in vista le quattro di tutti i giorni, le altre a un
+ * tocco. La verifica nasce scritta, o pratica nelle ore con l'ITP; il tipo si cambia dopo.
+ */
+const MAIN_ADD: QuickAdd[] = [
   { label: 'Spiegazione', kind: 'spiegazione' },
   { label: 'Esercitazione', kind: 'esercitazione' },
   { label: 'Laboratorio', kind: 'laboratorio' },
+  { label: 'Verifica', kind: 'verifica', assessment: { type: 'scritto', weight: 100, continues: false } },
+]
+const MORE_ADD: QuickAdd[] = [
   { label: 'Ripasso', kind: 'ripasso' },
-  { label: 'Verifica scritta', kind: 'verifica', assessment: { type: 'scritto', weight: 100, continues: false } },
-  { label: 'Interrogazione', kind: 'verifica', assessment: { type: 'teorico', weight: 100, continues: false } },
-  { label: 'Prova pratica', kind: 'verifica', assessment: { type: 'pratico', weight: 100, continues: false } },
   { label: 'Voto minore', kind: 'verifica', assessment: { type: 'pratico', weight: MINOR, continues: false } },
   { label: 'Ed. civica', kind: 'civica' },
   { label: 'Altro', kind: 'altro' },
 ]
+
+/** Con pochi argomenti si vedono tutti; con tanti, quelli vicini alla lezione. */
+const ALL_TOPICS_UP_TO = 5
 
 export function LessonDialog({ courseId, date, onClose }: { courseId: string; date: ISODate | null; onClose: () => void }) {
   return (
@@ -52,6 +60,8 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
   const course = data.courses[courseId]
   const lesson = data.lessons[lessonKey(courseId, date)]
   const [noteOpen, setNoteOpen] = useState(Boolean(lesson?.note))
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [skipping, setSkipping] = useState(false)
   const note = useAutosave((value) => course && value !== (lesson?.note ?? '') && apply(setNote(courseId, date, value)))
   if (!course) return null
 
@@ -62,9 +72,13 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
   // Una lezione senza giorno fisso non ha una data vera: si dice quale lezione è della settimana.
   const when = slot?.floating ? `Lezione ${slot.index} della settimana del ${formatDay(startOfWeek(date))}` : formatLong(date)
 
-  const add = (item: (typeof QUICK_ADD)[number]) => {
+  const add = (item: QuickAdd) => {
     const teaching = TEACHING_KINDS.includes(item.kind)
-    const assessment = item.assessment && { ...item.assessment, weight: item.assessment.weight === MINOR ? course.rules.minorWeight : item.assessment.weight }
+    const assessment = item.assessment && {
+      ...item.assessment,
+      type: item.assessment.weight === MINOR || !slot?.lab ? item.assessment.type : ('pratico' as const),
+      weight: item.assessment.weight === MINOR ? course.rules.minorWeight : item.assessment.weight,
+    }
     const topicIds = teaching
       ? [topicAround(data, course, date)?.id].filter((id): id is string => Boolean(id))
       : assessment && assessment.weight >= 100
@@ -88,7 +102,7 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
       {cancelled ? (
         <div className="flex items-center justify-between gap-3 rounded-lg bg-muted p-3">
           <span className="flex items-center gap-2 text-muted-foreground">
-            <CancelledIcon className="size-5" /> Lezione annullata
+            <CancelledIcon className="size-5" /> Lezione saltata
           </span>
           <Button variant="outline" size="sm" onClick={() => apply(setCancelled(courseId, date, false))}>
             Ripristina
@@ -104,7 +118,7 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
           </div>
 
           <div className="flex flex-wrap gap-1.5">
-            {QUICK_ADD.map((item) => (
+            {[...MAIN_ADD, ...(moreOpen ? MORE_ADD : [])].map((item) => (
               <Button key={item.label} variant="outline" size="sm" onClick={() => add(item)}>
                 {createElement(activityIcon(item.assessment ? { ...item, assessment: { ...item.assessment, weight: item.assessment.weight === MINOR ? 50 : 100 } } : item), {
                   className: item.kind === 'verifica' ? 'text-pencil-red' : 'text-pencil-blue',
@@ -112,6 +126,11 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
                 {item.label}
               </Button>
             ))}
+            {!moreOpen && (
+              <Button variant="ghost" size="sm" onClick={() => setMoreOpen(true)}>
+                Ripasso, voto minore, ed. civica…
+              </Button>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-1.5">
@@ -146,35 +165,47 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
         </>
       )}
 
+      {skipping && !cancelled && (
+        // Gita, sciopero, assemblea: le due strade spiegate per esteso, perché da telefono un suggerimento non si vede.
+        <div className="space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+          <p className="text-sm font-medium">Lezione saltata. Quello che era previsto…</p>
+          <SkipChoice
+            icon={ShiftIcon}
+            title="Slitta alla lezione dopo"
+            detail="Tutto il piano da qui in avanti si sposta di una lezione."
+            onClick={() => {
+              applyWithUndo(cancelAndShift(courseId, date), 'Lezione saltata: il piano è slittato di una lezione')
+              onClose()
+            }}
+          />
+          <SkipChoice
+            icon={CancelledIcon}
+            title="Si toglie"
+            detail="Il resto del piano resta dov'è."
+            onClick={() => {
+              applyWithUndo(
+                (d) => setCancelled(courseId, date, true)(activities.reduce((x, a) => removeActivity(courseId, date, a.id)(x), d)),
+                'Lezione saltata',
+              )
+              setSkipping(false)
+            }}
+          />
+          <Button variant="ghost" size="sm" onClick={() => setSkipping(false)}>
+            Indietro
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
-        {!cancelled && (
-          <div className="flex flex-wrap gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                applyWithUndo(cancelAndShift(courseId, date), 'Lezione annullata: il piano è slittato di una lezione')
-                onClose()
-              }}
-              title="Gita, assemblea, sciopero: quello che era previsto passa alla lezione dopo, e così via"
-            >
-              <ShiftIcon /> Persa, slitta il piano
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (activities.length > 0) {
-                  applyWithUndo(
-                    (d) => setCancelled(courseId, date, true)(activities.reduce((x, a) => removeActivity(courseId, date, a.id)(x), d)),
-                    'Lezione annullata',
-                  )
-                } else apply(setCancelled(courseId, date, true))
-              }}
-            >
-              <CancelledIcon /> Annulla lezione
-            </Button>
-          </div>
+        {!cancelled && !skipping && (
+          <Button
+            variant="ghost"
+            size="sm"
+            // Senza niente in programma non c'è niente da spostare: si salta e basta.
+            onClick={() => (activities.length > 0 ? setSkipping(true) : apply(setCancelled(courseId, date, true)))}
+          >
+            <CancelledIcon /> Lezione saltata
+          </Button>
         )}
         {!cancelled && (
           <Button
@@ -197,6 +228,18 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
   )
 }
 
+function SkipChoice({ icon: Icon, title, detail, onClick }: { icon: IconComponent; title: string; detail: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex w-full items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/40">
+      <Icon className="mt-0.5 size-5 shrink-0 text-pencil-blue" />
+      <span>
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-xs text-muted-foreground">{detail}</span>
+      </span>
+    </button>
+  )
+}
+
 function ActivityEditor({ courseId, date, activity }: { courseId: string; date: ISODate; activity: Activity }) {
   const { data, apply } = useData()
   const course = data.courses[courseId]
@@ -207,6 +250,11 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
   const setAssessment = (patch: Partial<Assessment>) => a && update({ assessment: { ...a, ...patch } })
   const toggleTopic = (id: string) =>
     update({ topicIds: activity.topicIds.includes(id) ? activity.topicIds.filter((t) => t !== id) : [...activity.topicIds, id] })
+  const [allTopics, setAllTopics] = useState(false)
+  // Gli argomenti vicini: quelli scelti, quello in corso, il precedente e il successivo.
+  const around = topics.findIndex((t) => t.id === topicAround(data, course, date)?.id)
+  const near = new Set([...activity.topicIds, ...(around >= 0 ? topics.slice(Math.max(0, around - 1), around + 2).map((t) => t.id) : [])])
+  const shownTopics = allTopics || topics.length <= ALL_TOPICS_UP_TO ? topics : topics.filter((t) => near.has(t.id))
 
   return (
     <div className="space-y-2.5 rounded-lg border p-3">
@@ -244,14 +292,14 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
             </label>
           )}
           <Toggle on={a.continues} onClick={() => setAssessment({ continues: !a.continues })}>
-            Continua la precedente
+            Seconda parte della precedente
           </Toggle>
         </div>
       )}
 
       {topics.length > 0 && activity.kind !== 'civica' && (
         <div className="flex flex-wrap gap-1.5" aria-label="Argomenti">
-          {topics.map((t) => (
+          {shownTopics.map((t) => (
             <Toggle
               key={t.id}
               on={activity.topicIds.includes(t.id)}
@@ -261,6 +309,11 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
               {t.title}
             </Toggle>
           ))}
+          {shownTopics.length < topics.length && (
+            <button type="button" onClick={() => setAllTopics(true)} className="px-1.5 text-xs font-medium text-primary hover:underline">
+              Tutti gli argomenti ({topics.length})
+            </button>
+          )}
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
 import { courseColor, formatHours } from '@/lib/ui'
@@ -52,6 +52,15 @@ export default function WeekPage() {
   const unconfirmed = [...days.flatMap((d) => d.slots), ...floating].filter(
     (s) => s.date < now && s.lesson?.activities.length && !s.lesson.done && !s.lesson.cancelled,
   )
+
+  // Da telefono le giornate stanno in colonna: all'apertura si parte da oggi, non dal lunedì.
+  // Non se ci sono lezioni passate da segnare: l'avviso in cima viene prima.
+  const todayRef = useRef<HTMLElement>(null)
+  // Si decide alla prima apertura: cambiando settimana o spuntando, la pagina resta dov'è.
+  const [scrollToToday] = useState(() => weekday(now) > 1 && unconfirmed.length === 0)
+  useEffect(() => {
+    if (scrollToToday && window.matchMedia('(max-width: 767px)').matches) todayRef.current?.scrollIntoView({ block: 'start' })
+  }, [scrollToToday])
 
   if (courses.length === 0) {
     return (
@@ -107,7 +116,7 @@ export default function WeekPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn/10 p-3">
           <p className="text-sm">
             {unconfirmed.length === 1 ? 'Una lezione passata' : `${unconfirmed.length} lezioni passate`} ancora da segnare.
-            Se è andata diversamente, aprila e usa <em>Persa, slitta il piano</em>.
+            Se è andata diversamente, aprila e usa <em>Lezione saltata</em>.
           </p>
           <Button size="sm" onClick={() => apply(markDone(unconfirmed))}>
             <DoneIcon /> Segna tutte fatte
@@ -134,7 +143,7 @@ export default function WeekPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots, hiddenSlots, meetings }) => (
-          <section key={date} className="space-y-2">
+          <section key={date} ref={date === now ? todayRef : undefined} className="scroll-mt-3 space-y-2">
             <h2 className="flex items-baseline justify-between gap-2 text-sm font-semibold first-letter:uppercase">
               {formatLong(date)}
               {date === now && (
@@ -312,7 +321,7 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
           <PencilStrike className="text-pencil-red" />
         </span>
         <span className="flex items-center gap-1 text-xs">
-          <CancelledIcon className="size-4" /> annullata
+          <CancelledIcon className="size-4" /> saltata
         </span>
       </button>
     )

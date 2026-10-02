@@ -8,6 +8,7 @@ import { today } from '@/core/dates'
 import { periodGrades } from '@/core/grading'
 import { weeklyHours } from '@/core/model'
 import { topicProgress } from '@/core/progress'
+import { gradesLine } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 import { CourseDialog } from './CourseDialog'
@@ -62,7 +63,7 @@ export default function CoursesPage() {
               </div>
               {grades && period && (
                 <p className={cn('text-xs', grades.status === 'ok' ? 'text-muted-foreground' : grades.status === 'a-rischio' ? 'text-pencil-red' : 'text-warn')}>
-                  {period.name}: {grades.done} {grades.done === 1 ? "voto fatto" : "voti fatti"}, {grades.full.length} previsti su {grades.target}
+                  Voti del {period.name}: {gradesLine(grades)}
                 </p>
               )}
             </Link>

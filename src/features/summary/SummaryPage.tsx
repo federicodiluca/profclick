@@ -10,7 +10,7 @@ import { daysBetween, formatRange, today } from '@/core/dates'
 import { type PeriodGrades, periodGrades } from '@/core/grading'
 import { type Course, GRADE_LABELS, isMinor, type Period } from '@/core/model'
 import { topicProgress } from '@/core/progress'
-import { formatHours } from '@/lib/ui'
+import { formatHours, gradesLine } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
@@ -119,7 +119,7 @@ function CourseSummary({ course, period }: { course: Course; period: Period }) {
       </div>
 
       <div className="space-y-3">
-        <Meter label="Voti" detail={`${grades.done} fatti, ${grades.full.length} in calendario su ${grades.target}`} done={grades.done} planned={grades.full.length} max={grades.target} />
+        <Meter label="Voti" detail={gradesLine(grades)} done={grades.done} planned={grades.full.length} max={grades.target} />
         {program.total > 0 && (
           <Meter
             label="Programma"

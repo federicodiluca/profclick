@@ -78,7 +78,7 @@ export default function CoursePage() {
         }))}
       />
 
-      {tab === 'piano' && <PlanTab course={course} />}
+      {tab === 'piano' && <PlanTab course={course} onShowGrades={() => setTab('voti')} />}
       {tab === 'programma' && <ProgramTab course={course} />}
       {tab === 'voti' && <GradesTab course={course} />}
       {tab === 'appunti' && <NotesTab course={course} />}

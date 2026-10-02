@@ -49,6 +49,15 @@ function describeSchedule(schedule: ScheduleSlot[]): string {
   return schedule.map((s) => `${s.day ? `${weekdayName(s.day, true)} ` : ''}${s.hours} h${s.lab ? ' ITP' : ''}`).join(' · ')
 }
 
+/** "Un voto per ora settimanale, almeno uno scritto, orale e pratico, minori al 30%" */
+function rulesSummary(draft: Draft, autoTarget: number): string {
+  const { perPeriod, required, minorWeight } = draft.rules
+  const count = perPeriod === null ? `Un voto per ora settimanale (${autoTarget})` : `${perPeriod} voti per periodo`
+  const types = required.map((t) => GRADE_LABELS[t].toLowerCase())
+  const atLeast = types.length ? `, almeno uno ${types.length > 1 ? `${types.slice(0, -1).join(', ')} e ${types.at(-1)}` : types[0]}` : ''
+  return `${count}${atLeast}, minori al ${minorWeight}%`
+}
+
 export function CourseDialog({
   open,
   course,
@@ -79,6 +88,8 @@ function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: ()
   const last = existing.at(-1)
   const [draft, setDraft] = useState<Draft>(() => course ?? blank(existing.length, existing.length % COURSE_COLORS, last?.rules.minorWeight ?? 30))
   const [mode, setMode] = useState<ScheduleMode>(() => (course && course.schedule.length > 0 && course.schedule.every((s) => s.day === null) ? 'lezioni' : 'giorni'))
+  // Una classe nuova parte dalle regole di default: si vedono in una riga, e si aprono se servono.
+  const [details, setDetails] = useState(Boolean(course))
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
   const setRules = (patch: Partial<Draft['rules']>) => set({ rules: { ...draft.rules, ...patch } })
   const toggleRequired = (t: GradeType) =>
@@ -138,23 +149,6 @@ function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: ()
         <div className="grid gap-1.5">
           <Label htmlFor="subject">Materia</Label>
           <Input id="subject" placeholder={last?.subject || 'Informatica'} value={draft.subject} onChange={(e) => set({ subject: e.target.value })} />
-        </div>
-      </div>
-
-      <div className="grid gap-2">
-        <Label>Colore</Label>
-        <div className="flex flex-wrap gap-2">
-          {Array.from({ length: COURSE_COLORS }, (_, i) => (
-            <button
-              key={i}
-              type="button"
-              aria-label={`Colore ${i + 1}`}
-              aria-pressed={draft.color === i}
-              onClick={() => set({ color: i })}
-              className={cn('size-7 rounded-full ring-offset-2 ring-offset-background transition', draft.color === i && 'ring-2 ring-foreground')}
-              style={{ background: courseColor({ color: i }) }}
-            />
-          ))}
         </div>
       </div>
 
@@ -252,7 +246,7 @@ function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: ()
             </Button>
             <p className="text-xs text-muted-foreground">
               Le lezioni di ogni settimana, in ordine, con le loro ore: non serve sapere in che giorno cadono. Se c'è una festività in
-              settimana, ProfClick toglie una lezione; se non era quella, la sistemi con <em>Persa, slitta il piano</em>.
+              settimana, ProfClick toglie una lezione; se non era quella, la sistemi con <em>Lezione saltata</em>.
             </p>
           </div>
         )}
@@ -299,74 +293,103 @@ function CourseForm({ course, onClose, onSaved }: { course?: Course; onClose: ()
         )}
       </div>
 
-      <fieldset className="grid gap-3 rounded-lg border p-3">
-        <legend className="px-1 text-sm font-medium">Voti per periodo</legend>
-        <Segmented<'auto' | 'fixed'>
-          value={draft.rules.perPeriod === null ? 'auto' : 'fixed'}
-          onChange={(v) => setRules({ perPeriod: v === 'auto' ? null : autoTarget })}
-          options={[
-            { value: 'auto', label: `Uno per ora settimanale (${autoTarget})` },
-            { value: 'fixed', label: 'Numero fisso' },
-          ]}
-        />
-        {draft.rules.perPeriod !== null && (
-          <Input
-            type="number"
-            min={1}
-            max={20}
-            value={draft.rules.perPeriod}
-            onChange={(e) => setRules({ perPeriod: Math.max(1, Number(e.target.value)) })}
-            className="w-24"
-            aria-label="Voti per periodo"
-          />
-        )}
-        <div className="grid gap-1.5">
-          <span className="text-xs text-muted-foreground">Almeno uno per tipo:</span>
-          <div className="flex flex-wrap gap-1.5">
-            {GRADE_TYPES.map((t) => (
-              <Toggle key={t} on={draft.rules.required.includes(t)} onClick={() => toggleRequired(t)}>
-                {GRADE_LABELS[t]}
-              </Toggle>
-            ))}
-          </div>
-        </div>
-        <label className="flex items-center gap-2 text-sm">
-          Peso proposto per i voti minori
-          <Input
-            type="number"
-            min={5}
-            max={95}
-            step={5}
-            value={draft.rules.minorWeight}
-            onChange={(e) => setRules({ minorWeight: Number(e.target.value) })}
-            className="w-20"
-          />
-          %
-        </label>
-      </fieldset>
-
-      {periods.length > 0 && (
-        <fieldset className="grid gap-2 rounded-lg border p-3">
-          <legend className="px-1 text-sm font-medium">Educazione civica</legend>
-          <p className="text-xs text-muted-foreground">Ore da svolgere in questa classe, se ne hai. Vengono contate e proposte nel piano.</p>
-          <div className="flex flex-wrap gap-3">
-            {periods.map((p) => (
-              <label key={p.id} className="flex items-center gap-2 text-sm">
-                {p.name}
-                <Input
-                  type="number"
-                  min={0}
-                  max={33}
-                  value={draft.civics[p.id] ?? ''}
-                  placeholder="0"
-                  onChange={(e) => set({ civics: { ...draft.civics, [p.id]: Number(e.target.value) || 0 } })}
-                  className="w-16 text-center"
+      {!details ? (
+        <button type="button" onClick={() => setDetails(true)} className="grid gap-0.5 rounded-lg border border-dashed p-3 text-left transition-colors hover:bg-muted/40">
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <span className="size-3 shrink-0 rounded-full" style={{ background: courseColor(draft) }} />
+            Colore, voti ed educazione civica
+          </span>
+          <span className="text-xs text-muted-foreground">{rulesSummary(draft, autoTarget)}. Tocca per cambiare.</span>
+        </button>
+      ) : (
+        <>
+          <div className="grid gap-2">
+            <Label>Colore</Label>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: COURSE_COLORS }, (_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`Colore ${i + 1}`}
+                  aria-pressed={draft.color === i}
+                  onClick={() => set({ color: i })}
+                  className={cn('size-7 rounded-full ring-offset-2 ring-offset-background transition', draft.color === i && 'ring-2 ring-foreground')}
+                  style={{ background: courseColor({ color: i }) }}
                 />
-                ore
-              </label>
-            ))}
+              ))}
+            </div>
           </div>
-        </fieldset>
+
+          <fieldset className="grid gap-3 rounded-lg border p-3">
+            <legend className="px-1 text-sm font-medium">Voti per periodo</legend>
+            <Segmented<'auto' | 'fixed'>
+              value={draft.rules.perPeriod === null ? 'auto' : 'fixed'}
+              onChange={(v) => setRules({ perPeriod: v === 'auto' ? null : autoTarget })}
+              options={[
+                { value: 'auto', label: `Uno per ora settimanale (${autoTarget})` },
+                { value: 'fixed', label: 'Numero fisso' },
+              ]}
+            />
+            {draft.rules.perPeriod !== null && (
+              <Input
+                type="number"
+                min={1}
+                max={20}
+                value={draft.rules.perPeriod}
+                onChange={(e) => setRules({ perPeriod: Math.max(1, Number(e.target.value)) })}
+                className="w-24"
+                aria-label="Voti per periodo"
+              />
+            )}
+            <div className="grid gap-1.5">
+              <span className="text-xs text-muted-foreground">Almeno uno per tipo:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {GRADE_TYPES.map((t) => (
+                  <Toggle key={t} on={draft.rules.required.includes(t)} onClick={() => toggleRequired(t)}>
+                    {GRADE_LABELS[t]}
+                  </Toggle>
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              Peso proposto per i voti minori
+              <Input
+                type="number"
+                min={5}
+                max={95}
+                step={5}
+                value={draft.rules.minorWeight}
+                onChange={(e) => setRules({ minorWeight: Number(e.target.value) })}
+                className="w-20"
+              />
+              %
+            </label>
+          </fieldset>
+
+          {periods.length > 0 && (
+            <fieldset className="grid gap-2 rounded-lg border p-3">
+              <legend className="px-1 text-sm font-medium">Educazione civica</legend>
+              <p className="text-xs text-muted-foreground">Ore da svolgere in questa classe, se ne hai. Vengono contate e proposte nel piano.</p>
+              <div className="flex flex-wrap gap-3">
+                {periods.map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 text-sm">
+                    {p.name}
+                    <Input
+                      type="number"
+                      min={0}
+                      max={33}
+                      value={draft.civics[p.id] ?? ''}
+                      placeholder="0"
+                      onChange={(e) => set({ civics: { ...draft.civics, [p.id]: Number(e.target.value) || 0 } })}
+                      className="w-16 text-center"
+                    />
+                    ore
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+        </>
       )}
 
       <DialogFooter>

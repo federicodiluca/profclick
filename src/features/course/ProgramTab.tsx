@@ -233,7 +233,6 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
   const [points, setPoints] = useState(topic?.points.join('\n') ?? '')
   const [assessments, setAssessments] = useState<PlannedAssessment[]>(topic?.assessments ?? [])
   const [prep, setPrep] = useState<PrepItem[]>(course.prep.filter((p) => p.topicId === id))
-  const [completed, setCompleted] = useState(topic?.completed ?? false)
   const placed = placedAssessments(data, course.id)
 
   const setAssessment = (i: number, patch: Partial<PlannedAssessment>) => setAssessments(assessments.map((a, j) => (j === i ? { ...a, ...patch } : a)))
@@ -251,7 +250,8 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
           .map((p) => p.trim())
           .filter(Boolean),
         assessments,
-        completed,
+        // "Concluso" si segna dal cerchio nella lista: qui si tiene quello che c'è.
+        completed: d.topics[id]?.completed ?? false,
         order: topic?.order ?? courseTopics(d, course.id).length,
       })(d)
       const others = course.prep.filter((p) => p.topicId !== id)
@@ -364,11 +364,6 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
         <Label htmlFor="topic-points">Sotto-punti, uno per riga</Label>
         <Textarea id="topic-points" value={points} onChange={(e) => setPoints(e.target.value)} rows={3} />
       </div>
-      <div>
-        <Toggle on={completed} onClick={() => setCompleted(!completed)}>
-          Già concluso
-        </Toggle>
-      </div>
       <DialogFooter className="sm:justify-between">
         {topic ? (
           <Button
@@ -441,7 +436,8 @@ function ImportDialog({ course, open, onClose }: { course: Course; open: boolean
           <DialogTitle>Incolla il programma</DialogTitle>
           <DialogDescription>
             Va bene quasi tutto: un elenco di argomenti (le righe rientrate diventano sotto-punti, le ore si leggono se scritte come "(10h)"), l'elenco dei
-            voti con 1️⃣ 2️⃣ per il quadrimestre e "(orale, 30%)", o la lista dei prossimi passi con ⚠️ per le verifiche e ⬅️ dove sei arrivato.
+            voti come "Reti (orale, 30%)", con i numeri di Keep per il quadrimestre, o la lista dei prossimi passi con i simboli di Keep per le verifiche
+            e la freccia dove sei arrivato.
           </DialogDescription>
         </DialogHeader>
         <Textarea
@@ -449,7 +445,7 @@ function ImportDialog({ course, open, onClose }: { course: Course; open: boolean
           onChange={(e) => setText(e.target.value)}
           rows={10}
           autoFocus
-          placeholder={'1️⃣ Architettura dei calcolatori (orale)\n✳️ Progetto computer (pratico, 30%)\n2️⃣ Sistemi di numerazione (scritto)\n2️⃣ Sistemi di numerazione (pratico)'}
+          placeholder={'Architettura dei calcolatori (10h)\n  CPU e memoria\nProgetto computer (pratico, 30%)\nSistemi di numerazione (scritto)'}
           className="font-mono text-xs"
         />
         {parsed.length > 0 && (

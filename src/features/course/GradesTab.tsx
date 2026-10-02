@@ -5,7 +5,7 @@ import { formatShort, today } from '@/core/dates'
 import { type GradeEvent, periodGrades } from '@/core/grading'
 import { assessmentLabel, type Course, GRADE_LABELS, isMinor, weeklyHours } from '@/core/model'
 import { GRADE_ICONS } from '@/lib/activityIcons'
-import { formatHours } from '@/lib/ui'
+import { formatHours, gradesLine } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 
@@ -32,7 +32,7 @@ export function GradesTab({ course }: { course: Course }) {
             title={period.name}
             action={
               <span className="text-sm text-muted-foreground">
-                {g.done} {g.done === 1 ? 'fatto' : 'fatti'} · {g.full.length} in calendario su {g.target}
+                {gradesLine(g)}
               </span>
             }
           >

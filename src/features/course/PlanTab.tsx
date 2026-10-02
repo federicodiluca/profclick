@@ -20,7 +20,7 @@ import { useData } from '@/state/data'
  * le lezioni vuote con gli argomenti e le valutazioni che mancano: si vede tratteggiata,
  * e diventa piano solo con "Applica".
  */
-export function PlanTab({ course }: { course: Course }) {
+export function PlanTab({ course, onShowGrades }: { course: Course; onShowGrades?: () => void }) {
   const { data, applyWithUndo } = useData()
   const year = data.year!
   const now = today()
@@ -72,6 +72,7 @@ export function PlanTab({ course }: { course: Course }) {
           value={`${grades.full.length}/${grades.target}`}
           hint={grades.missingTypes.length ? `manca ${grades.missingTypes.map((t) => GRADE_LABELS[t].toLowerCase()).join(', ')}` : `${grades.done} ${grades.done === 1 ? "fatto" : "fatti"}`}
           tone={grades.status === 'a-rischio' ? 'red' : grades.status === 'da-pianificare' ? 'warn' : undefined}
+          onClick={onShowGrades}
         />
         {grades.civics.target > 0 && (
           <Stat
@@ -167,14 +168,14 @@ export function PlanTab({ course }: { course: Course }) {
               <span className="min-w-0 flex-1 space-y-1">
                 {lesson?.cancelled ? (
                   <span className="flex items-center gap-1.5 text-sm">
-                    <CancelledIcon className="size-4" /> Annullata
+                    <CancelledIcon className="size-4" /> Saltata
                   </span>
                 ) : lesson?.activities.length ? (
                   lesson.activities.map((a) => <ActivityLine key={a.id} activity={a} data={data} />)
                 ) : suggestion ? (
                   <ActivityLine activity={suggestion} data={data} dashed />
                 ) : (
-                  <span className="text-sm text-muted-foreground">Libera</span>
+                  <span className="text-sm text-muted-foreground">Da pianificare</span>
                 )}
               </span>
               {lesson?.done && <DoneIcon className="size-5 shrink-0 text-done" aria-label="Fatta" />}
@@ -188,12 +189,18 @@ export function PlanTab({ course }: { course: Course }) {
   )
 }
 
-function Stat({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: 'warn' | 'red' }) {
-  return (
-    <div className="rounded-xl border bg-card p-3">
+function Stat({ label, value, hint, tone, onClick }: { label: string; value: string; hint: string; tone?: 'warn' | 'red'; onClick?: () => void }) {
+  const content = (
+    <>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={cn('font-heading text-xl font-bold', tone === 'warn' && 'text-warn', tone === 'red' && 'text-pencil-red')}>{value}</div>
       <div className="truncate text-xs text-muted-foreground">{hint}</div>
-    </div>
+    </>
+  )
+  if (!onClick) return <div className="rounded-xl border bg-card p-3">{content}</div>
+  return (
+    <button type="button" onClick={onClick} title="Apri i voti" className="rounded-xl border bg-card p-3 text-left transition-colors hover:bg-muted/40">
+      {content}
+    </button>
   )
 }
