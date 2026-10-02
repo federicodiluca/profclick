@@ -1,16 +1,30 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Section } from '@/components/bits'
 import { ShareApp } from '@/components/ShareApp'
-import { CalendarAddIcon, DownloadIcon, GoogleIcon, PlusIcon, TrashIcon, UploadIcon } from '@/components/icons'
+import { CalendarAddIcon, CopyIcon, DownloadIcon, GoogleIcon, PlusIcon, TrashIcon, UploadIcon } from '@/components/icons'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { deleteCourse, deleteMeeting, setYear } from '@/core/actions'
+import { deleteArchivedYear, deleteCourse, deleteMeeting, setYear, startNewYear } from '@/core/actions'
+import { archivedProgram, nextSchoolYear } from '@/core/archive'
+import type { ProgramTextInput } from '@/core/programText'
+import { ProgramTextDialog } from '@/features/course/ProgramTextDialog'
 import { allAssessments, allMeetings, toIcs } from '@/core/calendarExport'
-import { formatDay } from '@/core/dates'
+import { addDays, formatDay, today } from '@/core/dates'
 import { normalizeData, type SchoolYear } from '@/core/model'
 import { PERIOD_PRESETS, type PeriodPreset, presetPeriods } from '@/core/schoolYear'
 import { newId } from '@/lib/id'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/state/auth'
 import { useData } from '@/state/data'
 
@@ -20,10 +34,15 @@ export default function YearPage() {
   const update = (patch: Partial<SchoolYear>) => apply(setYear({ ...year, ...patch }))
   const demoCourses = Object.keys(data.courses).filter((id) => id.startsWith('demo-'))
   const demoMeetings = Object.keys(data.meetings).filter((id) => id.startsWith('demo-'))
+  // Il passaggio all'anno nuovo compare negli ultimi due mesi e, finite le lezioni, va in cima.
+  const over = today() > year.end
+  const ending = today() >= addDays(year.end, -60)
 
   return (
     <div className="space-y-10">
       <h1 className="font-heading text-2xl font-bold">Anno scolastico {year.label}</h1>
+
+      {over && <NewYearSection />}
 
       <Section title="Inizio e fine delle lezioni">
         <div className="grid max-w-md grid-cols-2 gap-3">
@@ -50,8 +69,8 @@ export default function YearPage() {
       >
         <div className="space-y-2">
           {year.periods.map((p, i) => (
-            <div key={p.id} className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
-              <TextField label="Nome" value={p.name} onChange={(name) => update({ periods: year.periods.map((x, j) => (j === i ? { ...x, name } : x)) })} />
+            <div key={p.id} className="grid grid-cols-2 items-end gap-2 border-b pb-3 last:border-0 sm:grid-cols-[1fr_auto_auto] sm:border-0 sm:pb-0">
+              <TextField className="col-span-2 sm:col-span-1" label="Nome" value={p.name} onChange={(name) => update({ periods: year.periods.map((x, j) => (j === i ? { ...x, name } : x)) })} />
               <DateField label="Dal" value={p.start} onChange={(start) => update({ periods: year.periods.map((x, j) => (j === i ? { ...x, start } : x)) })} />
               <DateField label="Al" value={p.end} onChange={(end) => update({ periods: year.periods.map((x, j) => (j === i ? { ...x, end } : x)) })} />
             </div>
@@ -79,8 +98,8 @@ export default function YearPage() {
           {[...year.holidays]
             .sort((a, b) => (a.from < b.from ? -1 : 1))
             .map((h) => (
-              <div key={h.id} className="grid grid-cols-[1fr_auto_auto_auto] items-end gap-2">
-                <TextField label="Nome" value={h.name} onChange={(name) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, name } : x)) })} />
+              <div key={h.id} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 border-b pb-3 last:border-0 sm:grid-cols-[1fr_auto_auto_auto] sm:border-0 sm:pb-0">
+                <TextField className="col-span-3 sm:col-span-1" label="Nome" value={h.name} onChange={(name) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, name } : x)) })} />
                 <DateField label="Dal" value={h.from} onChange={(from) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, from, to: x.to < from ? from : x.to } : x)) })} />
                 <DateField label="Al" value={h.to} onChange={(to) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, to } : x)) })} />
                 <Button variant="ghost" size="icon" aria-label={`Togli ${h.name}`} onClick={() => update({ holidays: year.holidays.filter((x) => x.id !== h.id) })}>
@@ -90,6 +109,10 @@ export default function YearPage() {
             ))}
         </div>
       </Section>
+
+      {ending && !over && <NewYearSection />}
+
+      <PastYearsSection />
 
       <DriveSection />
 
@@ -124,16 +147,16 @@ export default function YearPage() {
 
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <label className="grid gap-1 text-xs text-muted-foreground">
+    <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
       {label}
-      <Input type="date" value={value} onChange={(e) => e.target.value && onChange(e.target.value)} className="w-[9.5rem]" />
+      <Input type="date" value={value} onChange={(e) => e.target.value && onChange(e.target.value)} className="w-full sm:w-[9.5rem]" />
     </label>
   )
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function TextField({ label, value, onChange, className }: { label: string; value: string; onChange: (v: string) => void; className?: string }) {
   return (
-    <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
+    <label className={cn('grid min-w-0 gap-1 text-xs text-muted-foreground', className)}>
       {label}
       <Input key={value} defaultValue={value} onBlur={(e) => e.target.value.trim() && e.target.value !== value && onChange(e.target.value.trim())} />
     </label>
@@ -197,6 +220,81 @@ function CalendarSection() {
       <Button variant="outline" onClick={download}>
         <CalendarAddIcon /> Scarica il calendario (.ics)
       </Button>
+    </Section>
+  )
+}
+
+/** Fine anno: classi e programmi nell'archivio, si riparte dall'anno dopo (ADR 0012). */
+function NewYearSection() {
+  const { data, applyWithUndo } = useData()
+  const [confirm, setConfirm] = useState(false)
+  const year = data.year!
+  const next = nextSchoolYear(year)
+  const courses = Object.keys(data.courses).length
+
+  return (
+    <Section title={`Passa al ${next.label}`}>
+      <p className="text-sm text-muted-foreground">
+        A fine anno. Le classi di quest'anno, con il loro programma, vanno tra gli anni precedenti: nelle classi nuove lo copi con un tocco dal
+        Programma. Lezioni, verifiche e riunioni di quest'anno si tolgono; se vuoi tenerle, scarica prima la copia di sicurezza qui sotto.
+      </p>
+      <Button variant="outline" onClick={() => setConfirm(true)}>
+        <PlusIcon /> Inizia il {next.label}
+      </Button>
+      <AlertDialog open={confirm} onOpenChange={setConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Iniziare il {next.label}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {courses === 1 ? 'La classe' : `Le ${courses} classi`} del {year.label} {courses === 1 ? 'va' : 'vanno'} tra gli anni precedenti con il
+              programma. Lezioni, verifiche e riunioni si tolgono. Il nuovo anno parte con le festività nazionali: poi aggiungi quelle della tua regione
+              e le classi nuove.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => applyWithUndo(startNewYear(next), `Benvenuto nel ${next.label}`)}>Inizia il {next.label}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Section>
+  )
+}
+
+/** Gli anni archiviati: i loro programmi si copiano nelle classi nuove. */
+function PastYearsSection() {
+  const { data, applyWithUndo } = useData()
+  const [text, setText] = useState<ProgramTextInput | null>(null)
+  const years = Object.values(data.archive).sort((a, b) => b.label.localeCompare(a.label))
+  if (years.length === 0) return null
+
+  return (
+    <Section title="Anni precedenti">
+      <p className="text-sm text-muted-foreground">
+        I programmi delle classi passate: li copi in una classe nuova dal suo Programma. Il programma svolto di ognuna resta qui, da copiare come testo.
+      </p>
+      {years.map((y) => (
+        <div key={y.label} className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold">{y.label}</h3>
+            <Button variant="ghost" size="icon-sm" aria-label={`Togli il ${y.label}`} onClick={() => applyWithUndo(deleteArchivedYear(y.label), `${y.label} tolto`)}>
+              <TrashIcon />
+            </Button>
+          </div>
+          <ul className="divide-y rounded-xl border bg-card">
+            {y.courses.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">Nessuna classe</li>}
+            {y.courses.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-1.5 text-sm">
+                <span className="min-w-0 truncate">{c.subject ? `${c.className} · ${c.subject}` : c.className}</span>
+                <Button variant="ghost" size="sm" onClick={() => setText(archivedProgram(y, c))}>
+                  <CopyIcon /> Programma svolto
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <ProgramTextDialog input={text} onClose={() => setText(null)} />
     </Section>
   )
 }

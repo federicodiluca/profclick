@@ -1,12 +1,13 @@
 import { createElement, useState } from 'react'
 import { ProgressBar, Segmented, Toggle } from '@/components/bits'
-import { ArrowDownIcon, ArrowUpIcon, DoneIcon, MinorGradeIcon, PasteIcon, PlusIcon, PrepIcon, TrashIcon } from '@/components/icons'
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, DoneIcon, MinorGradeIcon, PasteIcon, PlusIcon, PrepIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { deleteTopic, moveTopic, saveCourse, saveTopic, saveTopics, setAssessmentDone, setTopicCompleted } from '@/core/actions'
+import { currentProgram, programSources } from '@/core/archive'
 import { formatShort, type ISODate } from '@/core/dates'
 import { placedAssessments } from '@/core/grading'
 import { type ParsedTopic, parseProgram } from '@/core/importText'
@@ -17,6 +18,8 @@ import { newId } from '@/lib/id'
 import { formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
+import { CopyProgramDialog } from './CopyProgramDialog'
+import { ProgramTextDialog } from './ProgramTextDialog'
 
 const STATUS_LABELS: Record<TopicProgress['status'], string> = {
   'da-pianificare': 'Da pianificare',
@@ -32,6 +35,8 @@ export function ProgramTab({ course }: { course: Course }) {
   const { data, apply, applyWithUndo } = useData()
   const [editing, setEditing] = useState<Topic | 'new' | null>(null)
   const [importing, setImporting] = useState(false)
+  const [copying, setCopying] = useState(false)
+  const [asText, setAsText] = useState(false)
   const progress = topicProgress(data, course)
   const placed = placedAssessments(data, course.id)
   const periods = data.year!.periods
@@ -41,7 +46,12 @@ export function ProgramTab({ course }: { course: Course }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{totals.map((t) => `${t.period.name}: ${formatHours(t.hours)}`).join(' · ')}</p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {progress.length > 0 && (
+            <Button variant="outline" onClick={() => setAsText(true)} title="Programma svolto o piano di lavoro, da incollare nel modello della scuola">
+              <CopyIcon /> Copia come testo
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setImporting(true)}>
             <PasteIcon /> Incolla da una nota
           </Button>
@@ -51,10 +61,32 @@ export function ProgramTab({ course }: { course: Course }) {
         </div>
       </div>
 
+      <ProgramTextDialog
+        input={asText ? currentProgram(data, course) : null}
+        // A inizio anno serve il piano di lavoro; da quando c'è qualcosa di fatto, il programma svolto.
+        kind={progress.some((p) => p.status === 'fatto' || p.status === 'in-corso') ? 'svolto' : 'piano'}
+        onClose={() => setAsText(false)}
+      />
+
       {progress.length === 0 && (
-        <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Il programma è vuoto. Il modo più veloce: copia la nota con il programma o con l'elenco dei voti (da Keep, da un documento, dal piano di lavoro
-          dell'anno scorso) e usa <strong>Incolla da una nota</strong>.
+        <div className="space-y-3 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          {programSources(data, course.id).length > 0 ? (
+            <>
+              <p>Il programma è vuoto. Se è lo stesso di un'altra classe, di quest'anno o degli anni passati, copialo e poi ritoccalo.</p>
+              <Button onClick={() => setCopying(true)}>
+                <CopyIcon /> Copia da un'altra classe
+              </Button>
+              <p>
+                Oppure copia la nota con il programma o con l'elenco dei voti (da Keep, da un documento) e usa <strong>Incolla da una nota</strong>.
+              </p>
+            </>
+          ) : (
+            <p>
+              Il programma è vuoto. Il modo più veloce: copia la nota con il programma o con l'elenco dei voti (da Keep, da un documento, dal piano di
+              lavoro dell'anno scorso) e usa <strong>Incolla da una nota</strong>.
+            </p>
+          )}
+          <CopyProgramDialog course={course} open={copying} onClose={() => setCopying(false)} />
         </div>
       )}
 

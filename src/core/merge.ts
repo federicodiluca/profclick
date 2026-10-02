@@ -5,7 +5,7 @@
 
 import type { Collection, ProfclickData, Stamped } from './model'
 
-export const COLLECTIONS: Collection[] = ['courses', 'topics', 'lessons', 'meetings']
+export const COLLECTIONS: Collection[] = ['courses', 'topics', 'lessons', 'meetings', 'archive']
 
 export function tombstone(collection: Collection, key: string): string {
   return `${collection}:${key}`
@@ -30,6 +30,7 @@ export function mergeData(a: ProfclickData, b: ProfclickData): ProfclickData {
     topics: {},
     lessons: {},
     meetings: {},
+    archive: {},
     deleted,
   }
 

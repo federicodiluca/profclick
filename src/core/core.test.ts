@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, cancelAndShift, changeSchedule, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setDone, setYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, cancelAndShift, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
+import { programText } from './programText'
 import { courseSlots, floatingSlotsOfWeek } from './calendar'
 import { easter, startOfWeek, weekday } from './dates'
 import { periodGrades, targetGrades } from './grading'
@@ -533,5 +535,109 @@ describe('riunioni', () => {
     expect(ics).toContain('DTSTART:20261020T150000')
     expect(ics).toContain('DESCRIPTION:- Verbale')
     expect(ics).toContain('TRANSP:OPAQUE')
+  })
+})
+
+describe('anni precedenti', () => {
+  let n = 0
+  const id = () => `n${n++}`
+  const withAssessment = () => saveTopics([topic('t3', 'Grafi', 6, { periodId: 'p2', assessments: [{ id: 'a', type: 'scritto', weight: 100, text: '', done: true }] })])(base())
+
+  it('copia il programma di un altra classe, tutto da fare, in coda', () => {
+    let data = saveCourse({ ...course, id: 'c2', className: '3B', order: 1 })(withAssessment())
+    data = saveTopics([{ ...topic('t9', 'Già qui', 2), courseId: 'c2' }])(data)
+    data = setTopicCompleted('t1', true)(data)
+    const [source] = programSources(data, 'c2')
+    expect(source.label).toBe('3A · Informatica')
+    data = copyProgram(source, 'c2', id)(data)
+    const copied = Object.values(data.topics)
+      .filter((t) => t.courseId === 'c2')
+      .sort((a, b) => a.order - b.order)
+    expect(copied.map((t) => [t.title, t.periodId, t.completed, t.order])).toEqual([
+      ['Già qui', 'p1', false, 9],
+      ['Algoritmi', 'p1', false, 10],
+      ['Array', 'p1', false, 11],
+      ['Grafi', 'p2', false, 12],
+    ])
+    expect(copied[3].assessments[0].done).toBe(false)
+    expect(copied[3].assessments[0].id).not.toBe('a')
+  })
+
+  it('il nuovo anno archivia classi e programmi e toglie il resto', () => {
+    let data = addActivity('c1', '2026-10-05', { id: 'x', kind: 'spiegazione', topicIds: ['t1'], text: '' })(withAssessment())
+    data = setDone('c1', '2026-10-05', true)(data)
+    data = setTopicCompleted('t2', true)(data)
+    data = saveMeeting(meeting('m'))(data)
+    const next = nextSchoolYear(data.year!)
+    expect(next.label).toBe('2027/28')
+    vi.setSystemTime(new Date('2027-06-20T10:00:00Z'))
+    const after = startNewYear(next)(data)
+    expect(after.year!.label).toBe('2027/28')
+    expect([after.courses, after.topics, after.lessons, after.meetings].map((r) => Object.keys(r).length)).toEqual([0, 0, 0, 0])
+    const archived = after.archive['2026/27']
+    expect(archived.courses[0].topics.map((t) => [t.title, t.completed])).toEqual([
+      ['Algoritmi', false],
+      ['Array', true],
+      ['Grafi', false],
+    ])
+    // Un dispositivo rimasto all'anno prima non riporta indietro niente.
+    expect(Object.keys(mergeData(data, after).courses)).toEqual([])
+    // Nella classe nuova si copia dall'archivio, con i periodi corrispondenti.
+    let fresh = saveCourse({ ...course, id: 'c9', className: '4A' })(after)
+    const [source] = programSources(fresh, 'c9')
+    expect(source.yearLabel).toBe('2026/27')
+    fresh = copyProgram(source, 'c9', id)(fresh)
+    expect(Object.values(fresh.topics).map((t) => t.periodId).sort()).toEqual(['p1', 'p1', 'p2'])
+    // Si può annullare, e un anno archiviato si può togliere.
+    vi.setSystemTime(new Date('2027-06-20T10:00:01Z'))
+    const undone = undoTo(data)(after)
+    expect(undone.year!.label).toBe('2026/27')
+    expect(Object.keys(undone.courses)).toEqual(['c1'])
+    expect(Object.keys(undone.archive)).toEqual([])
+    expect(deleteArchivedYear('2026/27')(after).archive).toEqual({})
+  })
+
+  it('trimestre e pentamestre restano tali', () => {
+    expect(nextSchoolYear(defaultSchoolYear(2026, 'trimestre-pentamestre')).periods[0].name).toBe('Trimestre')
+  })
+})
+
+describe('testo del programma', () => {
+  it('svolto: argomenti fatti e in parte, senza le voci che sono solo valutazioni', () => {
+    let data = saveTopics([
+      topic('t1', 'Algoritmi', 10, { points: ['Flowgorithm', 'Pseudocodice'] }),
+      topic('t3', 'Grafi', 6, { periodId: 'p2' }),
+      topic('t4', 'Prova parallela', 0, { periodId: 'p2' }),
+    ])(base())
+    data = setTopicCompleted('t1', true)(data)
+    data = setTopicCompleted('t4', true)(data)
+    data = addActivity('c1', '2026-10-05', { id: 'x', kind: 'spiegazione', topicIds: ['t2'], text: '' })(data)
+    data = setDone('c1', '2026-10-05', true)(data)
+    const input = currentProgram(data, data.courses.c1)
+    expect(programText(input, 'svolto', false)).toBe(
+      ['Programma svolto · 3A · Informatica · a.s. 2026/27', '', 'Algoritmi', '- Flowgorithm', '- Pseudocodice', '', 'Array (svolto in parte)'].join('\n'),
+    )
+    expect(programText(input, 'piano', true)).toBe(
+      [
+        'Piano di lavoro · 3A · Informatica · a.s. 2026/27',
+        '',
+        '1° quadrimestre',
+        'Algoritmi (10 ore)',
+        '- Flowgorithm',
+        '- Pseudocodice',
+        '',
+        'Array (12 ore)',
+        '',
+        '2° quadrimestre',
+        'Grafi (6 ore)',
+      ].join('\n'),
+    )
+    // Dall'archivio: lo stato è quello di fine anno.
+    vi.setSystemTime(new Date('2027-06-20T10:00:00Z'))
+    const after = startNewYear(nextSchoolYear(data.year!))(data)
+    const year = after.archive['2026/27']
+    expect(programText(archivedProgram(year, year.courses[0]), 'svolto', false)).toBe(
+      ['Programma svolto · 3A · Informatica · a.s. 2026/27', '', 'Algoritmi', '- Flowgorithm', '- Pseudocodice'].join('\n'),
+    )
   })
 })

@@ -77,6 +77,13 @@ export default function WeekPage() {
         </div>
       </div>
 
+      {data.year && now > data.year.end && (
+        <Link to="/anno" className="block rounded-xl border border-primary/40 bg-primary/5 p-3 text-sm transition-colors hover:bg-primary/10">
+          Le lezioni del {data.year.label} sono finite. Quando vuoi, dalla pagina Anno passi all'anno nuovo: i programmi restano, da copiare nelle
+          classi nuove.
+        </Link>
+      )}
+
       {thisWeek && <Alerts />}
 
       {unconfirmed.length > 0 && (

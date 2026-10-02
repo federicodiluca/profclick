@@ -206,6 +206,29 @@ export interface Meeting extends Stamped {
   notes: string
 }
 
+// --- Anni precedenti (ADR 0012) ---------------------------------------------------------
+
+/** Un argomento di un anno concluso: lo stesso di prima, senza la classe e la data di modifica. */
+export type ArchivedTopic = Omit<Topic, 'courseId' | 'updatedAt'>
+
+/** Una classe di un anno concluso, con il suo programma: da qui si copia nelle classi nuove. */
+export interface ArchivedCourse {
+  id: string
+  className: string
+  subject: string
+  color: number
+  /** Gli argomenti in ordine; completed dice se a fine anno era svolto. */
+  topics: ArchivedTopic[]
+}
+
+export interface ArchivedYear extends Stamped {
+  /** "2026/27": è anche la chiave nell'archivio. */
+  label: string
+  /** I periodi di quell'anno: servono a rimettere gli argomenti nel periodo corrispondente. */
+  periods: Period[]
+  courses: ArchivedCourse[]
+}
+
 // --- Il documento -----------------------------------------------------------------------
 
 export interface ProfclickData {
@@ -215,6 +238,8 @@ export interface ProfclickData {
   topics: Record<string, Topic>
   lessons: Record<string, Lesson>
   meetings: Record<string, Meeting>
+  /** Gli anni conclusi, per etichetta. */
+  archive: Record<string, ArchivedYear>
   /**
    * Record cancellati, come "collezione:chiave" → quando. Servono all'unione: senza, un
    * record cancellato qui tornerebbe dall'altro dispositivo che lo ha ancora.
@@ -222,10 +247,10 @@ export interface ProfclickData {
   deleted: Record<string, number>
 }
 
-export type Collection = 'courses' | 'topics' | 'lessons' | 'meetings'
+export type Collection = 'courses' | 'topics' | 'lessons' | 'meetings' | 'archive'
 
 export function emptyData(): ProfclickData {
-  return { schema: 1, year: null, courses: {}, topics: {}, lessons: {}, meetings: {}, deleted: {} }
+  return { schema: 1, year: null, courses: {}, topics: {}, lessons: {}, meetings: {}, archive: {}, deleted: {} }
 }
 
 // --- Lettura tollerante -----------------------------------------------------------------
@@ -291,12 +316,13 @@ export function normalizeData(raw: unknown): ProfclickData {
     topics: mapValues(value.topics as Record<string, Loose<Topic>>, normalizeTopic),
     lessons: mapValues(value.lessons as Record<string, Loose<Lesson>>, normalizeLesson),
     meetings: mapValues(value.meetings as Record<string, Loose<Meeting>>, normalizeMeeting),
+    archive: value.archive ?? {},
     deleted: value.deleted ?? {},
   }
 }
 
 export function isEmptyData(data: ProfclickData): boolean {
-  return !data.year && Object.keys(data.courses).length === 0 && Object.keys(data.meetings).length === 0 && Object.keys(data.deleted).length === 0
+  return !data.year && Object.keys(data.courses).length === 0 && Object.keys(data.meetings).length === 0 && Object.keys(data.archive).length === 0 && Object.keys(data.deleted).length === 0
 }
 
 // --- Etichette --------------------------------------------------------------------------

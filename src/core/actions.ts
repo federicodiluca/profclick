@@ -1,6 +1,7 @@
 // Le modifiche ai dati, come funzioni pure: ricevono il documento e ne restituiscono uno
 // nuovo. Ogni record toccato riceve un updatedAt nuovo, che serve all'unione tra dispositivi.
 
+import { archivedYear, matchPeriod, type ProgramSource } from './archive'
 import { courseSlots, isAvailable } from './calendar'
 import { addDays, type ISODate } from './dates'
 import { COLLECTIONS, tombstone } from './merge'
@@ -295,4 +296,51 @@ export function toggleMeetingPrep(meetingId: string, itemId: string): Change {
     if (!meeting) return data
     return put(data, 'meetings', meetingId, { ...meeting, prep: meeting.prep.map((p) => (p.id === itemId ? { ...p, done: !p.done } : p)) })
   }
+}
+
+// --- Anni precedenti --------------------------------------------------------------------
+
+/**
+ * Il programma di un'altra classe, di quest'anno o di un anno passato, copiato in coda a
+ * quello della classe: argomenti, ore, sotto-punti e valutazioni previste, tutto da fare.
+ */
+export function copyProgram(source: ProgramSource, courseId: string, newId: () => string): Change {
+  return (data) => {
+    if (!data.courses[courseId] || !data.year) return data
+    const first = Math.max(-1, ...Object.values(data.topics).filter((t) => t.courseId === courseId).map((t) => t.order)) + 1
+    const periods = data.year.periods
+    return [...source.topics]
+      .sort((a, b) => a.order - b.order)
+      .reduce(
+        (d, t, i) =>
+          saveTopic({
+            ...t,
+            id: newId(),
+            courseId,
+            periodId: matchPeriod(t.periodId, source.periods, periods),
+            assessments: t.assessments.map((a) => ({ ...a, id: newId(), done: false })),
+            completed: false,
+            order: first + i,
+          })(d),
+        data,
+      )
+  }
+}
+
+/**
+ * Fine anno: classi e programmi vanno nell'archivio, lezioni, verifiche e riunioni si
+ * tolgono, e si parte con l'anno nuovo. Le classi nuove si creano da capo (cambiano ogni
+ * anno), copiando il programma da quelle archiviate.
+ */
+export function startNewYear(year: Omit<SchoolYear, 'updatedAt'>): Change {
+  return (data) => {
+    const snapshot = archivedYear(data)
+    let next = snapshot ? put(data, 'archive', snapshot.label, { ...snapshot, updatedAt: 0 }) : data
+    for (const collection of ['courses', 'topics', 'lessons', 'meetings'] as const) next = remove(next, collection, Object.keys(next[collection]))
+    return setYear(year)(next)
+  }
+}
+
+export function deleteArchivedYear(label: string): Change {
+  return (data) => remove(data, 'archive', [label])
 }

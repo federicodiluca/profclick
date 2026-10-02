@@ -17,3 +17,5 @@ Una decisione superata non si cancella: si scrive un nuovo ADR che la sostituisc
 | [0009](0009-calendario-e-preparazione.md) | Verifiche sul calendario senza permessi; materiale da preparare | Accettata |
 | [0010](0010-orario-che-cambia.md) | Orario che cambia da una data; argomenti e voti spuntati senza lezione | Accettata |
 | [0011](0011-riunioni.md) | Riunioni con le cose da preparare e il riepilogo della classe | Accettata |
+| [0012](0012-anni-precedenti.md) | Programma copiato da un'altra classe; anni precedenti in archivio | Accettata |
+| [0013](0013-programma-come-testo.md) | Programma svolto e piano di lavoro come testo da incollare | Accettata |
