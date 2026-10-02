@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, cancelAndShift, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, cancelAndShift, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
 import { registerText } from './registerText'
@@ -12,6 +12,7 @@ import { classSummary, defaultPrep, meetingPeriod, openMeetingPrep, summaryText,
 import { mergeData, sameData } from './merge'
 import { type Course, emptyData, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
 import { topicProgress } from './progress'
+import { setTodosDone, todos } from './todo'
 import { assessmentTypes, proposePlan } from './proposal'
 import { sampleData } from './sample'
 import { defaultSchoolYear } from './schoolYear'
@@ -553,6 +554,69 @@ describe('riunioni', () => {
     expect(ics).toContain('DTSTART:20261020T150000')
     expect(ics).toContain('DESCRIPTION:- Verbale')
     expect(ics).toContain('TRANSP:OPAQUE')
+  })
+})
+
+describe('da fare', () => {
+  const spiega = (id: string, topicId: string) => ({ id, kind: 'spiegazione' as const, topicIds: [topicId], text: '' })
+  const list = (data: ProfclickData) => todos(data, '2026-09-29', '2026-10-11').map((t) => [t.id, t.due, t.done])
+
+  it('ogni attività in programma è una cosa da preparare, con le voci delle classi e delle riunioni', () => {
+    let data = addActivity('c1', '2026-09-28', spiega('ieri', 't1'))(base())
+    data = addActivity('c1', '2026-09-30', spiega('s1', 't1'))(data)
+    data = addActivity('c1', '2026-09-30', verifica('orale', 'teorico'))(data)
+    data = addActivity('c1', '2026-10-02', spiega('s2', 't2'))(data)
+    data = addActivity('c1', '2026-10-02', verifica('v', 'scritto'))(data)
+    data = addActivity('c1', '2026-10-02', verifica('v2', 'scritto', 100, true))(data)
+    data = addActivity('c1', '2026-10-30', spiega('lontana', 't2'))(data)
+    data = saveCourse({
+      ...course,
+      prep: [
+        { id: 'slide', text: 'Slide sugli array', topicId: 't2', done: false },
+        { id: 'libro', text: 'Libro di testo', topicId: null, done: false },
+        { id: 'fatta', text: 'Già fatta', topicId: null, done: true },
+      ],
+    })(data)
+    data = saveMeeting(meeting('m', { date: '2026-10-05', prep: [{ id: 'mp', text: 'Verbale', done: false }] }))(data)
+    // Niente lezioni passate, interrogazioni, seconde parti, né quello oltre l'orizzonte.
+    expect(list(data)).toEqual([
+      ['s1', '2026-09-30', false],
+      ['s2', '2026-10-02', false],
+      ['v', '2026-10-02', false],
+      ['slide', '2026-10-02', false],
+      ['mp', '2026-10-05', false],
+      ['libro', null, false],
+    ])
+  })
+
+  it('pronto resta pronto anche se la lezione slitta; a lezione fatta sparisce', () => {
+    let data = addActivity('c1', '2026-09-30', spiega('s1', 't1'))(base())
+    data = addActivity('c1', '2026-10-02', spiega('s2', 't2'))(data)
+    data = setActivityReady('c1', '2026-10-02', 's2', true)(data)
+    expect(list(data)).toEqual([
+      ['s1', '2026-09-30', false],
+      ['s2', '2026-10-02', true],
+    ])
+    data = cancelAndShift('c1', '2026-09-30')(data)
+    expect(list(data)).toEqual([
+      ['s1', '2026-10-02', false],
+      ['s2', '2026-10-05', true],
+    ])
+    data = setDone('c1', '2026-10-02', true)(data)
+    expect(list(data)).toEqual([['s2', '2026-10-05', true]])
+    expect(normalizeData(JSON.parse(JSON.stringify(data))).lessons[lessonKey('c1', '2026-10-05')].activities[0].ready).toBe(true)
+  })
+
+  it('tante voci insieme: si cambiano solo quelle da cambiare', () => {
+    let data = addActivity('c1', '2026-09-30', spiega('s1', 't1'))(base())
+    data = addActivity('c1', '2026-10-02', spiega('s2', 't2'))(data)
+    data = setActivityReady('c1', '2026-10-02', 's2', true)(data)
+    data = saveCourse({ ...course, prep: [{ id: 'p', text: 'Fotocopie', topicId: null, done: false }] })(data)
+    data = saveMeeting(meeting('m', { date: '2026-10-05', prep: [{ id: 'mp', text: 'Verbale', done: false }] }))(data)
+    data = setTodosDone(todos(data, '2026-09-29', '2026-10-11'), true)(data)
+    expect(list(data).every(([, , done]) => done)).toBe(true)
+    data = setTodosDone(todos(data, '2026-09-29', '2026-10-11'), false)(data)
+    expect(list(data).every(([, , done]) => !done)).toBe(true)
   })
 })
 

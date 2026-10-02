@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { addActivity, cancelAndShift, removeActivity, replaceActivity, setCancelled, setDone, setNote } from '@/core/actions'
+import { addActivity, cancelAndShift, removeActivity, replaceActivity, setActivityReady, setCancelled, setDone, setNote } from '@/core/actions'
 import { courseSlots } from '@/core/calendar'
 import { assessmentEntry, googleCalendarLink } from '@/core/calendarExport'
 import { formatDay, formatLong, type ISODate, startOfWeek } from '@/core/dates'
 import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, lessonKey } from '@/core/model'
 import { courseTopics, TEACHING_KINDS, topicAround, topicsSinceLastAssessment } from '@/core/progress'
 import { lessonRegisterText } from '@/core/registerText'
+import { needsPrep } from '@/core/todo'
 import { activityIcon } from '@/lib/activityIcons'
 import { newId } from '@/lib/id'
 import { formatHours } from '@/lib/ui'
@@ -329,6 +330,13 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
         {...text}
         className="h-8"
       />
+
+      {/* La stessa spunta della lista Da fare. */}
+      {needsPrep(activity) && !data.lessons[lessonKey(courseId, date)]?.done && (
+        <Toggle on={Boolean(activity.ready)} onClick={() => apply(setActivityReady(courseId, date, activity.id, !activity.ready))}>
+          {activity.ready ? 'Materiale pronto' : 'Materiale da preparare'}
+        </Toggle>
+      )}
 
       {a && !a.continues && (
         <a

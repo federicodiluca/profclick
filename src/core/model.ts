@@ -156,6 +156,8 @@ export interface Activity {
   text: string
   /** Presente solo per kind = 'verifica'. */
   assessment?: Assessment
+  /** Il materiale è pronto: spunta nella lista Da fare (ADR 0017). */
+  ready?: boolean
 }
 
 /**

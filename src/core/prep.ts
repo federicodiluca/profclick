@@ -12,17 +12,19 @@ export interface PrepDue {
   due: ISODate | null
 }
 
+/** Tutte le voci di una classe, fatte o no, con quando servono. */
+export function coursePrep(data: ProfclickData, course: Course, today: ISODate): PrepDue[] {
+  const items = course.prep.filter((p) => p.text.trim())
+  if (items.length === 0) return []
+  const slots = courseSlots(data, course, today).filter((s) => !s.lesson?.cancelled)
+  return items.map((item) => {
+    const slot = item.topicId ? slots.find((s) => s.lesson?.activities.some((a) => a.topicIds.includes(item.topicId!))) : undefined
+    return { course, item, due: slot?.date ?? null }
+  })
+}
+
 export function openPrep(data: ProfclickData, today: ISODate): PrepDue[] {
-  const result: PrepDue[] = []
-  for (const course of sortedCourses(data)) {
-    const open = course.prep.filter((p) => !p.done && p.text.trim())
-    if (open.length === 0) continue
-    const slots = courseSlots(data, course, today).filter((s) => !s.lesson?.cancelled)
-    for (const item of open) {
-      const slot = item.topicId ? slots.find((s) => s.lesson?.activities.some((a) => a.topicIds.includes(item.topicId!))) : undefined
-      result.push({ course, item, due: slot?.date ?? null })
-    }
-  }
+  const result = sortedCourses(data).flatMap((course) => coursePrep(data, course, today).filter((p) => !p.item.done))
   // Prima quello che serve prima; senza data in fondo, nell'ordine delle classi.
-  return result.sort((a, b) => (a.due ?? '9999') .localeCompare(b.due ?? '9999'))
+  return result.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'))
 }

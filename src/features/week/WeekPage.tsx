@@ -1,17 +1,16 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
-import { courseColor, formatHours } from '@/lib/ui'
-import { CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, MeetingIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
+import { formatHours } from '@/lib/ui'
+import { CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
 import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
-import { type Change, markDone, setDone, toggleMeetingPrep, togglePrep } from '@/core/actions'
+import { markDone, setDone } from '@/core/actions'
 import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses } from '@/core/calendar'
-import { addDays, daysBetween, formatLong, formatRange, formatShort, type ISODate, startOfWeek, today, weekday } from '@/core/dates'
-import { meetingsOn, openMeetingPrep } from '@/core/meetings'
-import { type Course, courseLabel, meetingLabel } from '@/core/model'
-import { openPrep } from '@/core/prep'
+import { addDays, formatLong, formatRange, type ISODate, startOfWeek, today, weekday } from '@/core/dates'
+import { meetingsOn } from '@/core/meetings'
 import { lessonRegisterText } from '@/core/registerText'
+import { todoCourse, todos } from '@/core/todo'
 import { CourseDialog } from '@/features/courses/CourseDialog'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { MeetingDialog } from '@/features/meetings/MeetingDialog'
@@ -19,6 +18,7 @@ import { MeetingCard } from '@/features/meetings/MeetingsPage'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 import { useHiddenCourses } from '@/state/weekFilter'
+import { CourseFilter } from './CourseFilter'
 import { RegisterDialog } from './RegisterDialog'
 
 export default function WeekPage() {
@@ -124,6 +124,8 @@ export default function WeekPage() {
         </div>
       )}
 
+      {thisWeek && <PrepLink monday={monday} hidden={hidden} />}
+
       {floating.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">Lezioni della settimana, senza giorno fisso</h2>
@@ -180,8 +182,6 @@ export default function WeekPage() {
         ))}
       </div>
 
-      {thisWeek && <PrepList hidden={hidden} />}
-
       <LessonDialog courseId={open?.courseId ?? ''} date={open?.date ?? null} onClose={() => setOpen(null)} />
       <MeetingDialog open={meetingOpen} onClose={() => setMeetingOpen(null)} />
       <RegisterDialog slots={forRegister} open={register} onClose={() => setRegister(false)} />
@@ -189,79 +189,22 @@ export default function WeekPage() {
   )
 }
 
-/** Quanti giorni prima conviene vedere il materiale da preparare. */
-const PREP_HORIZON_DAYS = 21
-
-interface PrepRow {
-  id: string
-  text: string
-  due: ISODate | null
-  toggle: Change
-  /** Per cosa serve: la classe e l'argomento, o la riunione. */
-  source: ReactNode
-}
-
-/** Il materiale da preparare per le lezioni e le riunioni delle prossime settimane, con quando serve. */
-function PrepList({ hidden }: { hidden: Set<string> }) {
-  const { data, apply } = useData()
-  const now = today()
-  const rows: PrepRow[] = [
-    ...openPrep(data, now)
-      .filter(({ course }) => !hidden.has(course.id))
-      .map(({ course, item, due }) => ({
-      id: item.id,
-      text: item.text,
-      due,
-      toggle: togglePrep(course.id, item.id),
-      source: (
-        <>
-          <CourseName course={course} />
-          {item.topicId && data.topics[item.topicId] && ` per ${data.topics[item.topicId].title}`}
-        </>
-      ),
-    })),
-    ...openMeetingPrep(data, now).map(({ meeting, item, due }) => ({
-      id: item.id,
-      text: item.text,
-      due,
-      toggle: toggleMeetingPrep(meeting.id, item.id),
-      source: (
-        <span className="inline-flex items-center gap-1.5">
-          <MeetingIcon className="size-3.5" /> {meetingLabel(meeting)}
-        </span>
-      ),
-    })),
-  ]
-  const soon = rows.filter((r) => r.due && daysBetween(now, r.due) <= PREP_HORIZON_DAYS).sort((a, b) => a.due!.localeCompare(b.due!))
-  if (soon.length === 0) return null
-  const later = rows.length - soon.length
-
+/** Quanto manca da preparare per la settimana: la lista vera sta nella pagina Da fare. */
+function PrepLink({ monday, hidden }: { monday: ISODate; hidden: Set<string> }) {
+  const { data } = useData()
+  const list = todos(data, today(), addDays(monday, 6)).filter((t) => t.due && !hidden.has(todoCourse(t)?.id ?? ''))
+  if (list.length === 0) return null
+  const open = list.filter((t) => !t.done).length
   return (
-    <section className="space-y-2">
-      <h2 className="flex items-center gap-2 text-sm font-semibold">
-        <PrepIcon className="size-4 text-warn" /> Da preparare
-      </h2>
-      <ul className="divide-y rounded-xl border bg-card">
-        {soon.map((row) => (
-          <li key={row.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-            <input
-              type="checkbox"
-              checked={false}
-              onChange={() => apply(row.toggle)}
-              className="size-4 shrink-0 accent-[var(--done)]"
-              aria-label={`Pronto: ${row.text}`}
-            />
-            <span className="min-w-0 flex-1">
-              {row.text}
-              <span className="block text-xs text-muted-foreground">
-                {row.source} · serve {row.due === now ? 'oggi' : formatShort(row.due!)}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      {later > 0 && <p className="text-xs text-muted-foreground">Altri {later} da preparare più avanti: li trovi negli Appunti delle classi e nelle Riunioni.</p>}
-    </section>
+    <Link to="/da-fare" className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3 text-sm shadow-xs transition-colors hover:bg-muted/40">
+      <span className="flex min-w-0 items-center gap-2 font-medium">
+        <PrepIcon className="size-5 shrink-0 text-warn" />
+        {open === 0 ? 'Tutto pronto per questa settimana' : open === 1 ? 'Una cosa da preparare per questa settimana' : `${open} cose da preparare per questa settimana`}
+      </span>
+      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+        {list.length - open} di {list.length} pronte <ChevronRightIcon className="size-4" />
+      </span>
+    </Link>
   )
 }
 
@@ -269,41 +212,6 @@ function PrepList({ hidden }: { hidden: Set<string> }) {
 function schoolHours(start: number, hours: number): string {
   const end = start + Math.ceil(hours) - 1
   return end > start ? `${start}ª–${end}ª ora` : `${start}ª ora`
-}
-
-/** Le classi da vedere nella settimana: si accendono e si spengono con un tocco. */
-function CourseFilter({ courses, hidden, onToggle, onShowAll }: { courses: Course[]; hidden: Set<string>; onToggle: (id: string) => void; onShowAll: () => void }) {
-  const anyHidden = courses.some((c) => hidden.has(c.id))
-  return (
-    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Classi da vedere">
-      {courses.map((course) => {
-        const on = !hidden.has(course.id)
-        return (
-          <button
-            key={course.id}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onToggle(course.id)}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-              on ? 'bg-card text-foreground shadow-xs' : 'border-dashed text-muted-foreground line-through hover:text-foreground',
-            )}
-          >
-            <span
-              className="size-2.5 shrink-0 rounded-full border-2"
-              style={{ borderColor: courseColor(course), background: on ? courseColor(course) : 'transparent' }}
-            />
-            {courseLabel(course)}
-          </button>
-        )
-      })}
-      {anyHidden && (
-        <button type="button" onClick={onShowAll} className="px-1.5 text-xs font-medium text-primary hover:underline">
-          Mostra tutte
-        </button>
-      )}
-    </div>
-  )
 }
 
 function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; past: boolean; onOpen: () => void; onToggleDone: () => void }) {

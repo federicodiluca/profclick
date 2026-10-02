@@ -203,6 +203,11 @@ export function setDone(courseId: string, date: ISODate, done: boolean): Change 
   return updateLesson(courseId, date, (l) => ({ ...l, done }))
 }
 
+/** Materiale pronto, o di nuovo da preparare. */
+export function setActivityReady(courseId: string, date: ISODate, activityId: string, ready: boolean): Change {
+  return updateLesson(courseId, date, (l) => ({ ...l, activities: l.activities.map((a) => (a.id === activityId ? { ...a, ready } : a)) }))
+}
+
 export function setNote(courseId: string, date: ISODate, note: string): Change {
   return updateLesson(courseId, date, (l) => ({ ...l, note }))
 }

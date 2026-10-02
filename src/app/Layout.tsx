@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react'
 import { Link, useRoute } from 'wouter'
-import { ClassesIcon, type IconComponent, MeetingIcon, SummaryIcon, WeekIcon, YearIcon } from '@/components/icons'
+import { ClassesIcon, type IconComponent, MeetingIcon, PrepIcon, SummaryIcon, WeekIcon, YearIcon } from '@/components/icons'
 import { InstallButton } from '@/components/InstallButton'
 import { SyncButton } from '@/components/SyncButton'
 import { ThemeButton } from '@/components/ThemeButton'
+import { addDays, today } from '@/core/dates'
+import { todos } from '@/core/todo'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 
-function NavLink({ to, icon: Icon, children }: { to: string; icon: IconComponent; children: ReactNode }) {
+function NavLink({ to, icon: Icon, badge, children }: { to: string; icon: IconComponent; badge?: number; children: ReactNode }) {
   const [active] = useRoute(to === '/' ? '/' : `${to}/*?`)
   return (
     <Link
@@ -18,8 +20,15 @@ function NavLink({ to, icon: Icon, children }: { to: string; icon: IconComponent
         active && 'bg-secondary text-foreground',
       )}
     >
-      <Icon className="size-5 sm:size-4" />
-      {/* Sui tablet stretti cinque voci non stanno in testata: restano le icone. */}
+      <span className="relative">
+        <Icon className="size-5 sm:size-4" />
+        {badge ? (
+          <span className="absolute -top-1.5 -right-2 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        ) : null}
+      </span>
+      {/* Sui tablet stretti sei voci non stanno in testata: restano le icone. */}
       <span className="truncate sm:sr-only md:not-sr-only">{children}</span>
     </Link>
   )
@@ -29,10 +38,16 @@ export function Layout({ children }: { children: ReactNode }) {
   // Prima di scegliere l'anno scolastico c'è solo il benvenuto: le sezioni non servono ancora.
   const { data } = useData()
   const ready = data.year !== null
+  // Sul tab Da fare, quante cose servono nei prossimi sette giorni e non sono ancora pronte.
+  const now = today()
+  const dueSoon = ready ? todos(data, now, addDays(now, 6)).filter((t) => t.due && !t.done).length : 0
   const nav = (
     <>
       <NavLink to="/" icon={WeekIcon}>
         Settimana
+      </NavLink>
+      <NavLink to="/da-fare" icon={PrepIcon} badge={dueSoon}>
+        Da fare
       </NavLink>
       <NavLink to="/classi" icon={ClassesIcon}>
         Classi

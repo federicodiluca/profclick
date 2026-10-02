@@ -60,7 +60,7 @@ export function NotesTab({ course }: { course: Course }) {
             <PlusIcon /> Aggiungi
           </Button>
         </form>
-        <p className="text-xs text-muted-foreground">Legato a un argomento, compare nella settimana quando si avvicina la lezione in cui serve.</p>
+        <p className="text-xs text-muted-foreground">Legato a un argomento, prende la data della prima lezione in cui serve e compare in Da fare. Spiegazioni, esercitazioni e verifiche in programma ci sono già da sole: qui va il resto.</p>
         {items.length > 0 && (
           <ul className="divide-y rounded-xl border bg-card">
             {items.map((item) => {

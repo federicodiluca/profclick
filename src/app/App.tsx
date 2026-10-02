@@ -9,6 +9,7 @@ import { DataProvider, useData } from '@/state/data'
 import { Layout } from './Layout'
 
 const WeekPage = lazy(() => import('@/features/week/WeekPage'))
+const TodoPage = lazy(() => import('@/features/todo/TodoPage'))
 const CoursesPage = lazy(() => import('@/features/courses/CoursesPage'))
 const CoursePage = lazy(() => import('@/features/course/CoursePage'))
 const SummaryPage = lazy(() => import('@/features/summary/SummaryPage'))
@@ -28,6 +29,7 @@ function Pages() {
   return (
     <Switch>
       <Route path="/" component={WeekPage} />
+      <Route path="/da-fare" component={TodoPage} />
       <Route path="/classi" component={CoursesPage} />
       <Route path="/classi/:id" component={CoursePage} />
       <Route path="/riepilogo" component={SummaryPage} />
