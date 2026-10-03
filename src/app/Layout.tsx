@@ -16,20 +16,19 @@ function NavLink({ to, icon: Icon, badge, children }: { to: string; icon: IconCo
       to={to}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:flex-none sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm',
+        'flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground md:flex-none md:flex-row md:gap-1.5 md:px-3 md:text-sm',
         active && 'bg-secondary text-foreground',
       )}
     >
       <span className="relative">
-        <Icon className="size-5 sm:size-4" />
+        <Icon className="size-5 md:size-4" />
         {badge ? (
           <span className="absolute -top-1.5 -right-2 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">
             {badge > 99 ? '99+' : badge}
           </span>
         ) : null}
       </span>
-      {/* Sui tablet stretti sei voci non stanno in testata: restano le icone. */}
-      <span className="truncate sm:sr-only md:not-sr-only">{children}</span>
+      <span className="truncate">{children}</span>
     </Link>
   )
 }
@@ -71,24 +70,29 @@ export function Layout({ children }: { children: ReactNode }) {
           <img src="/favicon.svg" alt="" className="size-7" />
           ProfClick
         </Link>
-        {ready && (
-          <nav className="hidden items-center gap-1 sm:flex" aria-label="Sezioni">
-            {nav}
-          </nav>
-        )}
         <div className="flex items-center gap-1">
-          <InstallButton variant="ghost" size="sm" />
+          {/* Da computer il browser offre già l'installazione nella barra degli indirizzi:
+              il pulsante resta solo su telefono e tablet, dove serve davvero. */}
+          <InstallButton variant="ghost" size="sm" className="md:hidden" />
           <ThemeButton />
           <SyncButton />
         </div>
       </header>
 
-      <main className={cn('flex-1 pb-10', ready && 'pb-24 sm:pb-10', 'print:pb-0')}>{children}</main>
+      {/* Da computer le sezioni stanno in una riga loro, sotto la testata: accanto al logo
+          e ai pulsanti sei voci con il nome non ci starebbero. */}
+      {ready && (
+        <nav className="-mt-1 mb-3 hidden flex-wrap items-center gap-1 border-b pb-2 md:flex print:hidden" aria-label="Sezioni">
+          {nav}
+        </nav>
+      )}
 
-      {/* Da telefono la navigazione sta in basso, a portata di pollice. */}
+      <main className={cn('flex-1 pb-10', ready && 'pb-24 md:pb-10', 'print:pb-0')}>{children}</main>
+
+      {/* Da telefono e tablet la navigazione sta in basso, a portata di pollice. */}
       {ready && (
         <nav
-          className="fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t bg-background/95 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden print:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t bg-background/95 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden print:hidden"
           aria-label="Sezioni"
         >
           {nav}
