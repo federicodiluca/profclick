@@ -4,7 +4,7 @@
 
 import { isAvailable, periodSlots } from './calendar'
 import type { ISODate } from './dates'
-import { type Activity, type Course, type GradeType, isMinor, type Period, type PlannedAssessment, type ProfclickData, type Topic, weeklyHours } from './model'
+import { type Activity, type Course, type GradeType, isDone, isMinor, type Period, type PlannedAssessment, type ProfclickData, type Topic, weeklyHours } from './model'
 
 export interface GradeEvent {
   /** null per una valutazione segnata come fatta dal programma, senza lezione. */
@@ -46,7 +46,7 @@ export function placedAssessments(data: ProfclickData, courseId: string): Map<st
   const placed = new Map<string, { date: ISODate; done: boolean }>()
   for (const lesson of Object.values(data.lessons)) {
     if (lesson.courseId !== courseId || lesson.cancelled) continue
-    for (const a of lesson.activities) if (a.assessment?.plannedId) placed.set(a.assessment.plannedId, { date: lesson.date, done: lesson.done })
+    for (const a of lesson.activities) if (a.assessment?.plannedId) placed.set(a.assessment.plannedId, { date: lesson.date, done: isDone(lesson) })
   }
   return placed
 }
@@ -63,12 +63,12 @@ export function periodGrades(data: ProfclickData, course: Course, period: Period
       if (activity.kind === 'civica') {
         const hours = slot.hours / activities.length
         civics.planned += hours
-        if (slot.lesson?.done) civics.done += hours
+        if (isDone(slot.lesson)) civics.done += hours
       }
       const a = activity.assessment
       if (activity.kind !== 'verifica' || !a) continue
       if (a.continues) continue
-      const event = { date: slot.date, activity, type: a.type, weight: a.weight, done: slot.lesson?.done ?? false }
+      const event = { date: slot.date, activity, type: a.type, weight: a.weight, done: isDone(slot.lesson) }
       ;(isMinor(a) ? minor : full).push(event)
     }
   }
@@ -95,7 +95,7 @@ export function periodGrades(data: ProfclickData, course: Course, period: Period
   }
 
   const target = targetGrades(course)
-  const upcoming = slots.filter((s) => s.date >= today && !s.lesson?.done)
+  const upcoming = slots.filter((s) => s.date >= today && !isDone(s.lesson, today))
   const missing = Math.max(0, target - full.length)
   const missingTypes = course.rules.required.filter((t) => !full.some((g) => g.type === t))
   const freeLessons = upcoming.filter((s) => !s.lesson?.activities.length).length

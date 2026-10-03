@@ -4,7 +4,7 @@
 
 import { courseSlots, isAvailable } from './calendar'
 import type { ISODate } from './dates'
-import type { ActivityKind, Course, ProfclickData, Topic } from './model'
+import { type ActivityKind, type Course, isDone, type ProfclickData, type Topic } from './model'
 
 /** Le attività che fanno avanzare il programma. */
 export const TEACHING_KINDS: ActivityKind[] = ['spiegazione', 'esercitazione', 'laboratorio', 'ripasso']
@@ -37,7 +37,7 @@ export function topicProgress(data: ProfclickData, course: Course): TopicProgres
         const entry = byTopic.get(id) ?? { planned: 0, done: 0 }
         const hours = share / activity.topicIds.length
         entry.planned += hours
-        if (lesson.done) entry.done += hours
+        if (isDone(lesson)) entry.done += hours
         entry.first ??= slot.date
         entry.last = slot.date
         byTopic.set(id, entry)

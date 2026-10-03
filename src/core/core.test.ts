@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, cancelAndShift, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, addExtraLesson, cancelAndShift, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
 import { registerText } from './registerText'
@@ -10,7 +10,7 @@ import { periodGrades, targetGrades } from './grading'
 import { parseProgram } from './importText'
 import { classSummary, defaultPrep, meetingPeriod, openMeetingPrep, summaryText, updateDefaultPrep, wasCoordinator } from './meetings'
 import { mergeData, sameData } from './merge'
-import { type Course, emptyData, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
+import { type Course, emptyData, isDone, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
 import { topicProgress } from './progress'
 import { setTodosDone, todos } from './todo'
 import { assessmentTypes, proposePlan } from './proposal'
@@ -237,6 +237,73 @@ describe('lezione persa', () => {
     expect(data.lessons[lessonKey('c1', '2026-10-07')].activities[0].id).toBe('a')
     expect(data.lessons[lessonKey('c1', '2026-10-09')].activities[0].id).toBe('b')
     expect(data.lessons[lessonKey('c1', '2026-10-12')].activities[0].id).toBe('c')
+  })
+})
+
+describe('lezioni cambiate a mano', () => {
+  const spiegazione = (id: string) => ({ id, kind: 'spiegazione' as const, topicIds: ['t1'], text: '' })
+  const dates = (data: ProfclickData) => courseSlots(data, data.courses.c1, '2026-10-05', '2026-10-11').map((s) => [s.date, s.hours, s.extra ?? false])
+
+  it('una lezione in più compare nel suo giorno, anche fuori orario, e conta', () => {
+    let data = addExtraLesson('c1', { date: '2026-10-06', hours: 1, start: 3, lab: false })(base())
+    expect(dates(data)).toEqual([
+      ['2026-10-05', 2, false],
+      ['2026-10-06', 1, true],
+      ['2026-10-07', 1, false],
+      ['2026-10-09', 2, false],
+    ])
+    expect(slotsOn(data, '2026-10-06')[0].start).toBe(3)
+    // Non due lezioni della stessa classe nello stesso giorno.
+    data = addExtraLesson('c1', { date: '2026-10-05', hours: 1, lab: false })(data)
+    expect(data.lessons[lessonKey('c1', '2026-10-05')]).toBeUndefined()
+  })
+
+  it('spostata in un altro giorno porta con sé il piano, e il giorno di prima sparisce', () => {
+    let data = addActivity('c1', '2026-10-05', spiegazione('a'))(base())
+    data = moveLesson('c1', '2026-10-05', { date: '2026-10-06', hours: 2, lab: false })(data)
+    expect(dates(data)).toEqual([
+      ['2026-10-06', 2, true],
+      ['2026-10-07', 1, false],
+      ['2026-10-09', 2, false],
+    ])
+    expect(data.lessons[lessonKey('c1', '2026-10-06')].activities[0].id).toBe('a')
+    // Una lezione in più spostata di nuovo non lascia segni.
+    data = moveLesson('c1', '2026-10-06', { date: '2026-10-08', hours: 2, lab: false })(data)
+    expect(data.lessons[lessonKey('c1', '2026-10-06')]).toBeUndefined()
+    expect(data.lessons[lessonKey('c1', '2026-10-08')].activities[0].id).toBe('a')
+  })
+
+  it("nello stesso giorno tiene solo quello che cambia rispetto all'orario", () => {
+    let data = moveLesson('c1', '2026-10-05', { date: '2026-10-05', hours: 1, lab: false })(base())
+    expect(data.lessons[lessonKey('c1', '2026-10-05')].hours).toBe(1)
+    data = moveLesson('c1', '2026-10-05', { date: '2026-10-05', hours: 2, lab: false })(data)
+    expect(data.lessons[lessonKey('c1', '2026-10-05')]).toBeUndefined()
+  })
+
+  it('eliminata sparisce; le lezioni in più restano col cambio di orario', () => {
+    let data = deleteLesson('c1', '2026-10-07')(addActivity('c1', '2026-10-07', spiegazione('a'))(base()))
+    data = addExtraLesson('c1', { date: '2026-10-10', hours: 1, lab: false })(data)
+    expect(dates(data).map((d) => d[0])).toEqual(['2026-10-05', '2026-10-09', '2026-10-10'])
+    data = changeSchedule('c1', [{ day: 2, hours: 2, lab: false }], '2026-10-05')(data)
+    expect(dates(data).map((d) => d[0])).toEqual(['2026-10-06', '2026-10-10'])
+    data = deleteLesson('c1', '2026-10-10')(data)
+    expect(data.lessons[lessonKey('c1', '2026-10-10')]).toBeUndefined()
+  })
+})
+
+describe('lezioni fatte', () => {
+  it('passata con qualcosa in programma conta da sola come fatta; vuota, saltata o futura no', () => {
+    // Oggi è il 29 settembre.
+    let data = addActivity('c1', '2026-09-28', { id: 'a', kind: 'spiegazione', topicIds: ['t1'], text: '' })(base())
+    data = addActivity('c1', '2026-09-30', { id: 'b', kind: 'spiegazione', topicIds: ['t1'], text: '' })(data)
+    data = addActivity('c1', '2026-09-25', { id: 'c', kind: 'spiegazione', topicIds: ['t1'], text: '' })(data)
+    data = setCancelled('c1', '2026-09-25', true)(data)
+    const lesson = (date: string) => data.lessons[lessonKey('c1', date)]
+    expect(isDone(lesson('2026-09-28'))).toBe(true)
+    expect(isDone(lesson('2026-09-30'))).toBe(false)
+    expect(isDone(lesson('2026-09-25'))).toBe(false)
+    expect(isDone(lesson('2026-09-23'))).toBe(false)
+    expect(topicProgress(data, data.courses.c1)[0].doneHours).toBe(2)
   })
 })
 

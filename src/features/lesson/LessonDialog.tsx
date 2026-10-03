@@ -1,16 +1,16 @@
 import { createElement, useState } from 'react'
 import { toast } from 'sonner'
 import { ActivityLine, CourseName, Segmented, Toggle } from '@/components/bits'
-import { CalendarAddIcon, CancelledIcon, DoneIcon, type IconComponent, NoteIcon, RegisterIcon, ShiftIcon, TrashIcon } from '@/components/icons'
+import { CalendarAddIcon, CancelledIcon, DoneIcon, EditIcon, type IconComponent, NoteIcon, RegisterIcon, ShiftIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { addActivity, cancelAndShift, removeActivity, replaceActivity, setActivityReady, setCancelled, setDone, setNote } from '@/core/actions'
+import { addActivity, cancelAndShift, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, replaceActivity, setActivityReady, setCancelled, setDone, setNote } from '@/core/actions'
 import { courseSlots } from '@/core/calendar'
 import { assessmentEntry, googleCalendarLink } from '@/core/calendarExport'
 import { formatDay, formatLong, type ISODate, startOfWeek } from '@/core/dates'
-import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, lessonKey } from '@/core/model'
+import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, isAutoDone, isDone, lessonKey } from '@/core/model'
 import { courseTopics, TEACHING_KINDS, topicAround, topicsSinceLastAssessment } from '@/core/progress'
 import { lessonRegisterText } from '@/core/registerText'
 import { needsPrep } from '@/core/todo'
@@ -20,6 +20,7 @@ import { formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
+import { LessonTimeFields } from './LessonTime'
 
 /** Peso segnaposto del voto minore: al momento di aggiungerlo diventa quello proposto dalla classe. */
 const MINOR = -1
@@ -47,28 +48,36 @@ const MORE_ADD: QuickAdd[] = [
 const ALL_TOPICS_UP_TO = 5
 
 export function LessonDialog({ courseId, date, onClose }: { courseId: string; date: ISODate | null; onClose: () => void }) {
+  // Spostata in un altro giorno, la finestra resta aperta e segue la lezione.
+  const [moved, setMoved] = useState<{ from: ISODate; to: ISODate } | null>(null)
+  const current = date && moved?.from === date ? moved.to : date
+  const close = () => {
+    setMoved(null)
+    onClose()
+  }
   return (
-    <Dialog open={date !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={current !== null} onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
-        {date && <LessonEditor courseId={courseId} date={date} onClose={onClose} />}
+        {current && <LessonEditor key={current} courseId={courseId} date={current} onClose={close} onMoved={(to) => date && setMoved({ from: date, to })} />}
       </DialogContent>
     </Dialog>
   )
 }
 
-function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISODate; onClose: () => void }) {
+function LessonEditor({ courseId, date, onClose, onMoved }: { courseId: string; date: ISODate; onClose: () => void; onMoved: (to: ISODate) => void }) {
   const { data, apply, applyWithUndo } = useData()
   const course = data.courses[courseId]
   const lesson = data.lessons[lessonKey(courseId, date)]
   const [noteOpen, setNoteOpen] = useState(Boolean(lesson?.note))
   const [moreOpen, setMoreOpen] = useState(false)
   const [skipping, setSkipping] = useState(false)
+  const [timeEdit, setTimeEdit] = useState<LessonTime | null>(null)
   const note = useAutosave((value) => course && value !== (lesson?.note ?? '') && apply(setNote(courseId, date, value)))
   if (!course) return null
 
   const slot = courseSlots(data, course, date, date)[0]
   const activities = lesson?.activities ?? []
-  const done = lesson?.done ?? false
+  const done = isDone(lesson)
   const cancelled = lesson?.cancelled ?? false
   // Una lezione senza giorno fisso non ha una data vera: si dice quale lezione è della settimana.
   const when = slot?.floating ? `Lezione ${slot.index} della settimana del ${formatDay(startOfWeek(date))}` : formatLong(date)
@@ -94,11 +103,35 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
         <DialogTitle className="flex flex-wrap items-center gap-x-2 text-lg">
           <CourseName course={course} />
         </DialogTitle>
-        <DialogDescription>
-          {when} · {formatHours(slot?.hours ?? 0)}
+        <DialogDescription className="flex flex-wrap items-center gap-x-1">
+          {when} · {slot?.start && `dalla ${slot.start}ª ora · `}
+          {formatHours(slot?.hours ?? 0)}
           {slot?.lab && ' · con ITP'}
+          {slot?.extra && ' · in più'}
+          {slot && !timeEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-xs text-primary"
+              onClick={() => setTimeEdit({ date, hours: slot.hours, start: slot.start, lab: slot.lab })}
+            >
+              <EditIcon className="size-3.5" /> Cambia
+            </Button>
+          )}
         </DialogDescription>
       </DialogHeader>
+
+      {timeEdit && (
+        <TimeEditor
+          courseId={courseId}
+          date={date}
+          value={timeEdit}
+          onChange={setTimeEdit}
+          onDone={() => setTimeEdit(null)}
+          onMoved={onMoved}
+          onDeleted={onClose}
+        />
+      )}
 
       {cancelled ? (
         <div className="flex items-center justify-between gap-3 rounded-lg bg-muted p-3">
@@ -208,7 +241,12 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
             <CancelledIcon /> Lezione saltata
           </Button>
         )}
-        {!cancelled && (
+        {!cancelled && isAutoDone(lesson) ? (
+          // Passata con qualcosa in programma: conta da sola come fatta.
+          <span className="flex items-center gap-1.5 text-sm font-medium text-done">
+            <DoneIcon className="size-4" /> Fatta
+          </span>
+        ) : !cancelled && (
           <Button
             variant={done ? 'secondary' : 'default'}
             onClick={() => {
@@ -226,6 +264,68 @@ function LessonEditor({ courseId, date, onClose }: { courseId: string; date: ISO
         )}
       </div>
     </>
+  )
+}
+
+/**
+ * Giorno, ora e durata di una lezione, per un cambio d'orario, una sostituzione, un'ora
+ * scambiata. Il piano segue la lezione. Eliminarla vuol dire che non c'era: sparisce, senza
+ * restare barrata come una lezione saltata.
+ */
+function TimeEditor({
+  courseId,
+  date,
+  value,
+  onChange,
+  onDone,
+  onMoved,
+  onDeleted,
+}: {
+  courseId: string
+  date: ISODate
+  value: LessonTime
+  onChange: (value: LessonTime) => void
+  onDone: () => void
+  onMoved: (to: ISODate) => void
+  onDeleted: () => void
+}) {
+  const { data, applyWithUndo } = useData()
+  const problem = lessonTimeProblem(data, courseId, value, date)
+  const hasPlan = (data.lessons[lessonKey(courseId, date)]?.activities.length ?? 0) > 0
+  return (
+    <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
+      <LessonTimeFields value={value} onChange={onChange} />
+      {problem && <p className="text-sm text-warn">{problem}</p>}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-pencil-red"
+          onClick={() => {
+            applyWithUndo(deleteLesson(courseId, date), hasPlan ? 'Lezione eliminata, con quello che era previsto' : 'Lezione eliminata')
+            onDeleted()
+          }}
+        >
+          <TrashIcon /> Elimina lezione
+        </Button>
+        <span className="flex gap-1.5">
+          <Button variant="ghost" size="sm" onClick={onDone}>
+            Indietro
+          </Button>
+          <Button
+            size="sm"
+            disabled={Boolean(problem)}
+            onClick={() => {
+              applyWithUndo(moveLesson(courseId, date, value), value.date === date ? 'Lezione cambiata' : `Lezione spostata a ${formatLong(value.date)}`)
+              onDone()
+              if (value.date !== date) onMoved(value.date)
+            }}
+          >
+            Salva
+          </Button>
+        </span>
+      </div>
+    </div>
   )
 }
 

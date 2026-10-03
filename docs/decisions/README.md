@@ -23,3 +23,5 @@ Una decisione superata non si cancella: si scrive un nuovo ADR che la sostituisc
 | [0015](0015-riepilogo.md) | Riepilogo per periodo a barre, con le note per lo scrutinio | Accettata |
 | [0016](0016-registro-e-orario.md) | Argomenti da incollare nel registro; orario da stampare | Accettata |
 | [0017](0017-da-fare.md) | Da fare: le cose da preparare nascono dalle lezioni | Accettata |
+| [0018](0018-lezioni-cambiate-a-mano.md) | Lezioni in più, spostate o eliminate a mano | Accettata |
+| [0019](0019-passata-vuol-dire-fatta.md) | Una lezione pianificata e passata è fatta, senza confermarla | Accettata |

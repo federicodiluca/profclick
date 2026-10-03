@@ -7,7 +7,7 @@ import { applyProposal } from '@/core/actions'
 import { currentPeriod, isAvailable, periodSlots } from '@/core/calendar'
 import { formatShort, startOfWeek, today } from '@/core/dates'
 import { periodGrades } from '@/core/grading'
-import { type Course, GRADE_LABELS } from '@/core/model'
+import { type Course, GRADE_LABELS, isDone } from '@/core/model'
 import { courseTopics } from '@/core/progress'
 import { type Proposal, proposePlan } from '@/core/proposal'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
@@ -178,7 +178,7 @@ export function PlanTab({ course, onShowGrades }: { course: Course; onShowGrades
                   <span className="text-sm text-muted-foreground">Da pianificare</span>
                 )}
               </span>
-              {lesson?.done && <DoneIcon className="size-5 shrink-0 text-done" aria-label="Fatta" />}
+              {isDone(lesson, now) && <DoneIcon className="size-5 shrink-0 text-done" aria-label="Fatta" />}
             </button>
           )
         })}

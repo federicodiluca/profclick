@@ -11,6 +11,7 @@ import { setTodosDone, type Todo, todoCourse, todos, toggleTodo } from '@/core/t
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { MeetingDialog } from '@/features/meetings/MeetingDialog'
 import { CourseFilter } from '@/features/week/CourseFilter'
+import { formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 import { useHiddenCourses } from '@/state/weekFilter'
@@ -194,6 +195,8 @@ function TodoRow({ todo, now, onOpen }: { todo: Todo; now: ISODate; onOpen: () =
         )}
         {topic && <span>· per {topic}</span>}
         {when && <span>· {when}</span>}
+        {/* Quanto dura la lezione: cambia quanto materiale serve. */}
+        {s.kind === 'activity' && <span>· {formatHours(s.hours)}</span>}
       </span>
     </>
   )

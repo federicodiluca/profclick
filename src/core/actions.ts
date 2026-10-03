@@ -3,12 +3,14 @@
 
 import { archivedYear, matchPeriod, type ProgramSource } from './archive'
 import { courseSlots, isAvailable } from './calendar'
-import { addDays, type ISODate } from './dates'
+import { addDays, type ISODate, weekday } from './dates'
 import { COLLECTIONS, tombstone } from './merge'
 import {
   type Activity,
   type Collection,
   type Course,
+  courseLabel,
+  isDone,
   type Lesson,
   lessonKey,
   type Meeting,
@@ -81,9 +83,10 @@ export function changeSchedule(courseId: string, schedule: ScheduleSlot[], from:
     pastSchedules = pastSchedules.filter((p, i) => !sameSchedule(p.schedule, pastSchedules[i + 1]?.schedule ?? schedule))
     const updated = { ...course, schedule, pastSchedules }
 
-    const before = courseSlots(data, course, from)
+    // Le lezioni in più restano nel loro giorno: non vengono dall'orario.
+    const before = courseSlots(data, course, from).filter((s) => !s.extra)
     let next = put(data, 'courses', courseId, updated)
-    const after = courseSlots(next, updated, from)
+    const after = courseSlots(next, updated, from).filter((s) => !s.extra)
 
     const cancelled = new Map(before.filter((s) => s.lesson?.cancelled).map((s) => [s.date, s.lesson!]))
     const moving = before.filter((s) => !s.lesson?.cancelled).map((s) => s.lesson)
@@ -103,7 +106,7 @@ export function changeSchedule(courseId: string, schedule: ScheduleSlot[], from:
 
     const stale = Object.keys(next.lessons).filter((k) => {
       const l = next.lessons[k]
-      return l.courseId === courseId && l.date >= from && !target.has(l.date)
+      return l.courseId === courseId && l.date >= from && !target.has(l.date) && !l.extra && !l.removed
     })
     next = remove(next, 'lessons', stale)
     for (const lesson of target.values()) if (next.lessons[lessonKey(courseId, lesson.date)] !== lesson) next = writeLesson(next, lesson)
@@ -173,7 +176,17 @@ function emptyLesson(courseId: string, date: ISODate): Lesson {
 }
 
 function isBlank(lesson: Lesson): boolean {
-  return lesson.activities.length === 0 && !lesson.done && !lesson.cancelled && !lesson.note.trim()
+  return (
+    lesson.activities.length === 0 &&
+    !lesson.done &&
+    !lesson.cancelled &&
+    !lesson.note.trim() &&
+    !lesson.extra &&
+    !lesson.removed &&
+    lesson.hours === undefined &&
+    lesson.start === undefined &&
+    lesson.lab === undefined
+  )
 }
 
 /** Scrive il piano di un giorno; se resta vuoto lo toglie, così il file non si riempie di niente. */
@@ -226,7 +239,7 @@ export function cancelAndShift(courseId: string, date: ISODate): Change {
   return (data) => {
     const course = data.courses[courseId]
     if (!course) return data
-    const slots = courseSlots(data, course, date).filter((s) => s.date === date || (isAvailable(s) && !s.lesson?.done))
+    const slots = courseSlots(data, course, date).filter((s) => s.date === date || (isAvailable(s) && !isDone(s.lesson)))
     if (slots[0]?.date !== date) return data
 
     let carry = slots[0].lesson?.activities ?? []
@@ -243,6 +256,81 @@ export function cancelAndShift(courseId: string, date: ISODate): Change {
       next = updateLesson(courseId, last, (l) => ({ ...l, activities: [...l.activities, ...carry] }))(next)
     }
     return next
+  }
+}
+
+export interface LessonTime {
+  date: ISODate
+  hours: number
+  /** Ora di scuola d'inizio; undefined = non indicata. */
+  start?: number
+  lab: boolean
+}
+
+/** C'è già una lezione della classe in quel giorno (dall'orario o aggiunta a mano). */
+export function hasLessonOn(data: ProfclickData, courseId: string, date: ISODate): boolean {
+  const course = data.courses[courseId]
+  return Boolean(course && courseSlots(data, course, date, date).length > 0)
+}
+
+/** Perché non si può mettere una lezione lì, o null se va bene. */
+export function lessonTimeProblem(data: ProfclickData, courseId: string, time: LessonTime, from?: ISODate): string | null {
+  const year = data.year
+  if (year && (time.date < year.start || time.date > year.end)) return "Il giorno è fuori dall'anno scolastico."
+  if (weekday(time.date) === 7) return 'È una domenica.'
+  if (time.date !== from && hasLessonOn(data, courseId, time.date)) {
+    const course = data.courses[courseId]
+    return `${course ? courseLabel(course) : 'La classe'} ha già lezione quel giorno: aprila e cambiane ore o ora d'inizio.`
+  }
+  return null
+}
+
+/** Una lezione in più, fuori dall'orario: supplenza, recupero, ora scambiata con un collega. */
+export function addExtraLesson(courseId: string, time: LessonTime): Change {
+  return (data) =>
+    hasLessonOn(data, courseId, time.date)
+      ? data
+      : writeLesson(data, { ...emptyLesson(courseId, time.date), extra: true, hours: time.hours, start: time.start, lab: time.lab })
+}
+
+/**
+ * Una lezione cambia giorno, ora o durata, col suo piano. Nello stesso giorno restano solo
+ * ore e ora d'inizio diverse dall'orario. In un altro giorno diventa una lezione in più, e
+ * quella dell'orario si toglie: così un cambio d'ora non lascia un buco da segnalare.
+ */
+export function moveLesson(courseId: string, from: ISODate, time: LessonTime): Change {
+  return (data) => {
+    const course = data.courses[courseId]
+    const slot = course && courseSlots(data, course, from, from)[0]
+    if (!slot) return data
+    const lesson = slot.lesson ?? emptyLesson(courseId, from)
+    if (time.date === from) {
+      // Rispetto all'orario si tiene solo quello che cambia; una lezione in più tiene tutto.
+      const base = slot.extra ? undefined : courseSlots({ ...data, lessons: {} }, course, from, from)[0]
+      const differ = <T,>(value: T, original: T | undefined) => (base && value === original ? undefined : value)
+      return writeLesson(data, {
+        ...lesson,
+        hours: differ(time.hours, base?.hours),
+        start: differ(time.start, base?.start),
+        lab: differ(time.lab, base?.lab),
+      })
+    }
+    if (hasLessonOn(data, courseId, time.date)) return data
+    const moved: Lesson = { ...lesson, date: time.date, extra: true, removed: undefined, hours: time.hours, start: time.start, lab: time.lab }
+    const next = slot.extra ? remove(data, 'lessons', [lessonKey(courseId, from)]) : writeLesson(data, { ...emptyLesson(courseId, from), removed: true })
+    return writeLesson(next, moved)
+  }
+}
+
+/**
+ * La lezione non c'era: sparisce, col suo piano. Diversa da "saltata", che resta barrata e
+ * fa slittare il piano: qui è l'orario che quel giorno era diverso.
+ */
+export function deleteLesson(courseId: string, date: ISODate): Change {
+  return (data) => {
+    const lesson = data.lessons[lessonKey(courseId, date)]
+    if (lesson?.extra) return remove(data, 'lessons', [lessonKey(courseId, date)])
+    return writeLesson(data, { ...emptyLesson(courseId, date), removed: true })
   }
 }
 

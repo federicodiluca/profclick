@@ -24,6 +24,8 @@ export interface LessonSlot {
   start?: number
   /** Il piano di quel giorno, se ce n'è uno. */
   lesson?: Lesson
+  /** Aggiunta a mano, fuori dall'orario. */
+  extra?: boolean
 }
 
 interface DaySlot {
@@ -95,9 +97,29 @@ export function courseSlots(data: ProfclickData, course: Course, from?: ISODate,
     const pattern = patterns.get(schedule) ?? patterns.set(schedule, weekPattern(schedule)).get(schedule)!
     const day = pattern.get(weekday(date))
     if (!day || holidayOn(year, date)) continue
-    slots.push({ courseId: course.id, date, ...day, lesson: data.lessons[lessonKey(course.id, date)] })
+    const lesson = data.lessons[lessonKey(course.id, date)]
+    if (lesson?.removed || lesson?.extra) continue
+    slots.push({ courseId: course.id, date, ...day, ...overrides(lesson), lesson })
   }
-  return slots
+  // Le lezioni in più stanno dove le si è messe, anche fuori dall'orario o in un giorno di vacanza.
+  const extra = Object.values(data.lessons).filter((l) => l.extra && l.courseId === course.id && l.date >= start && l.date <= end)
+  if (extra.length === 0) return slots
+  for (const lesson of extra) {
+    slots.push({ courseId: course.id, date: lesson.date, hours: 1, lab: false, floating: false, index: 0, ...overrides(lesson), lesson, extra: true })
+  }
+  return slots.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Ore, ora d'inizio e ITP cambiati a mano su una lezione. */
+function overrides(lesson: Lesson | undefined): Partial<LessonSlot> {
+  if (!lesson) return {}
+  return {
+    ...(lesson.hours !== undefined && { hours: lesson.hours }),
+    ...(lesson.start !== undefined && { start: lesson.start }),
+    ...(lesson.lab !== undefined && { lab: lesson.lab }),
+    // Spostata a un giorno preciso: non è più una lezione senza giorno.
+    ...(lesson.extra && { floating: false }),
+  }
 }
 
 export function periodSlots(data: ProfclickData, course: Course, period: Period): LessonSlot[] {

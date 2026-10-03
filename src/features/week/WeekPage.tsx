@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
 import { formatHours } from '@/lib/ui'
-import { CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
+import { CalendarAddIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
 import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
-import { markDone, setDone } from '@/core/actions'
+import { setDone } from '@/core/actions'
 import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses } from '@/core/calendar'
 import { addDays, formatLong, formatRange, type ISODate, startOfWeek, today, weekday } from '@/core/dates'
 import { meetingsOn } from '@/core/meetings'
@@ -13,9 +13,11 @@ import { lessonRegisterText } from '@/core/registerText'
 import { todoCourse, todos } from '@/core/todo'
 import { CourseDialog } from '@/features/courses/CourseDialog'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
+import { AddLessonDialog } from '@/features/lesson/LessonTime'
 import { MeetingDialog } from '@/features/meetings/MeetingDialog'
 import { MeetingCard } from '@/features/meetings/MeetingsPage'
 import { cn } from '@/lib/utils'
+import { isAutoDone, isDone } from '@/core/model'
 import { useData } from '@/state/data'
 import { useHiddenCourses } from '@/state/weekFilter'
 import { CourseFilter } from './CourseFilter'
@@ -30,6 +32,7 @@ export default function WeekPage() {
   const [creating, setCreating] = useState(false)
   const [meetingOpen, setMeetingOpen] = useState<string | null>(null)
   const [register, setRegister] = useState(false)
+  const [adding, setAdding] = useState<ISODate | null>(null)
   const courses = sortedCourses(data)
   const { hidden, toggle, showAll } = useHiddenCourses()
   const shown = (slot: LessonSlot) => !hidden.has(slot.courseId)
@@ -49,15 +52,16 @@ export default function WeekPage() {
   const hasSaturday = days[5].slots.length + days[5].hiddenSlots > 0 || days[5].meetings.length > 0 || courses.some((c) => c.schedule.some((s) => s.day === 6))
   // Per il registro: le lezioni fino a oggi, delle classi accese, con qualcosa da scrivere.
   const forRegister = [...days.flatMap((d) => d.slots), ...floating].filter((s) => s.date <= now && lessonRegisterText(data, s))
-  const unconfirmed = [...days.flatMap((d) => d.slots), ...floating].filter(
-    (s) => s.date < now && s.lesson?.activities.length && !s.lesson.done && !s.lesson.cancelled,
-  )
+  // Le lezioni da oggi in poi ancora vuote: quelle passate senza nulla sono andate comunque.
+  const unplanned = [...days.flatMap((d) => d.slots), ...floating]
+    .filter((s) => s.date >= now && !s.lesson?.cancelled && !s.lesson?.activities.length)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const upcoming = [...days.flatMap((d) => d.slots), ...floating].filter((s) => s.date >= now && !s.lesson?.cancelled).length
 
   // Da telefono le giornate stanno in colonna: all'apertura si parte da oggi, non dal lunedì.
-  // Non se ci sono lezioni passate da segnare: l'avviso in cima viene prima.
   const todayRef = useRef<HTMLElement>(null)
   // Si decide alla prima apertura: cambiando settimana o spuntando, la pagina resta dov'è.
-  const [scrollToToday] = useState(() => weekday(now) > 1 && unconfirmed.length === 0)
+  const [scrollToToday] = useState(() => weekday(now) > 1)
   useEffect(() => {
     if (scrollToToday && window.matchMedia('(max-width: 767px)').matches) todayRef.current?.scrollIntoView({ block: 'start' })
   }, [scrollToToday])
@@ -112,16 +116,12 @@ export default function WeekPage() {
 
       {courses.length > 1 && <CourseFilter courses={courses} hidden={hidden} onToggle={toggle} onShowAll={showAll} />}
 
-      {unconfirmed.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn/10 p-3">
-          <p className="text-sm">
-            {unconfirmed.length === 1 ? 'Una lezione passata' : `${unconfirmed.length} lezioni passate`} ancora da segnare.
-            Se è andata diversamente, aprila e usa <em>Lezione saltata</em>.
-          </p>
-          <Button size="sm" onClick={() => apply(markDone(unconfirmed))}>
-            <DoneIcon /> Segna tutte fatte
-          </Button>
-        </div>
+      {upcoming > 0 && (
+        <PlanStatus
+          missing={unplanned.length}
+          thisWeek={thisWeek}
+          onPlan={() => setOpen({ courseId: unplanned[0].courseId, date: unplanned[0].date })}
+        />
       )}
 
       {thisWeek && <PrepLink monday={monday} hidden={hidden} />}
@@ -146,35 +146,45 @@ export default function WeekPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots, hiddenSlots, meetings }) => (
           <section key={date} ref={date === now ? todayRef : undefined} className="scroll-mt-3 space-y-2">
-            <h2 className="flex items-baseline justify-between gap-2 text-sm font-semibold first-letter:uppercase">
-              {formatLong(date)}
-              {date === now && (
-                // Oggi cerchiato a matita blu, come sul diario.
-                <span className="relative mr-3 text-xs font-semibold tracking-wide text-pencil-blue normal-case">
-                  oggi
-                  <PencilCircle />
-                </span>
-              )}
+            <h2 className="flex items-center justify-between gap-2 text-sm font-semibold">
+              <span className="first-letter:uppercase">{formatLong(date)}</span>
+              <span className="flex items-center gap-2">
+                {date === now && (
+                  // Oggi cerchiato a matita blu, come sul diario.
+                  <span className="relative mr-1 text-xs font-semibold tracking-wide text-pencil-blue">
+                    oggi
+                    <PencilCircle />
+                  </span>
+                )}
+                {/* Supplenza, recupero, ora scambiata: una lezione fuori dall'orario. */}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-7 text-muted-foreground"
+                  aria-label={`Aggiungi una lezione ${formatLong(date)}`}
+                  title="Aggiungi una lezione fuori orario"
+                  onClick={() => setAdding(date)}
+                >
+                  <PlusIcon />
+                </Button>
+              </span>
             </h2>
-            {holiday ? (
-              <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{holiday.name}</p>
-            ) : slots.length === 0 ? (
-              meetings.length === 0 && (
-                <p className="px-1 text-sm text-muted-foreground">
-                  {hiddenSlots === 0 ? 'Nessuna lezione' : hiddenSlots === 1 ? 'Una lezione di una classe nascosta' : `${hiddenSlots} lezioni di classi nascoste`}
-                </p>
-              )
-            ) : (
-              slots.map((slot) => (
-                <LessonCard
-                  key={slot.courseId}
-                  slot={slot}
-                  past={date < now}
-                  onOpen={() => setOpen({ courseId: slot.courseId, date })}
-                  onToggleDone={() => apply(setDone(slot.courseId, date, !slot.lesson?.done))}
-                />
-              ))
+            {holiday && <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{holiday.name}</p>}
+            {!holiday && slots.length === 0 && meetings.length === 0 && (
+              <p className="px-1 text-sm text-muted-foreground">
+                {hiddenSlots === 0 ? 'Nessuna lezione' : hiddenSlots === 1 ? 'Una lezione di una classe nascosta' : `${hiddenSlots} lezioni di classi nascoste`}
+              </p>
             )}
+            {/* Anche in un giorno di vacanza, se ci si è messa una lezione in più. */}
+            {slots.map((slot) => (
+              <LessonCard
+                key={slot.courseId}
+                slot={slot}
+                past={date < now}
+                onOpen={() => setOpen({ courseId: slot.courseId, date })}
+                onToggleDone={() => apply(setDone(slot.courseId, date, !slot.lesson?.done))}
+              />
+            ))}
             {meetings.map((m) => (
               <MeetingCard key={m.id} meeting={m} onOpen={() => setMeetingOpen(m.id)} />
             ))}
@@ -184,8 +194,44 @@ export default function WeekPage() {
 
       <LessonDialog courseId={open?.courseId ?? ''} date={open?.date ?? null} onClose={() => setOpen(null)} />
       <MeetingDialog open={meetingOpen} onClose={() => setMeetingOpen(null)} />
+      <AddLessonDialog
+        date={adding}
+        onClose={() => setAdding(null)}
+        onAdded={(courseId, date) => {
+          setAdding(null)
+          setOpen({ courseId, date })
+        }}
+      />
       <RegisterDialog slots={forRegister} open={register} onClose={() => setRegister(false)} />
     </div>
+  )
+}
+
+/** Se le lezioni della settimana da qui in avanti hanno tutte qualcosa in programma. */
+function PlanStatus({ missing, thisWeek, onPlan }: { missing: number; thisWeek: boolean; onPlan: () => void }) {
+  const week = thisWeek ? 'questa settimana' : 'della settimana'
+  if (missing === 0) {
+    return (
+      <p className="flex items-center gap-2 rounded-xl border bg-card p-3 text-sm font-medium shadow-xs">
+        <DoneIcon className="size-5 shrink-0 text-done" />
+        {thisWeek ? 'Tutte le lezioni di questa settimana sono pianificate' : 'Tutte le lezioni della settimana sono pianificate'}
+      </p>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onPlan}
+      className="flex w-full items-center justify-between gap-3 rounded-xl border bg-card p-3 text-left text-sm shadow-xs transition-colors hover:bg-muted/40"
+    >
+      <span className="flex min-w-0 items-center gap-2 font-medium">
+        <CalendarAddIcon className="size-5 shrink-0 text-muted-foreground" />
+        {missing === 1 ? `Una lezione ${week} è ancora da pianificare` : `${missing} lezioni ${week} sono ancora da pianificare`}
+      </span>
+      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+        Pianifica <ChevronRightIcon className="size-4" />
+      </span>
+    </button>
   )
 }
 
@@ -218,7 +264,9 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
   const { data } = useData()
   const course = data.courses[slot.courseId]
   const lesson = slot.lesson
-  const done = lesson?.done ?? false
+  const done = isDone(lesson)
+  const auto = isAutoDone(lesson)
+  const planned = (lesson?.activities.length ?? 0) > 0
 
   if (lesson?.cancelled) {
     return (
@@ -236,7 +284,15 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
   }
 
   return (
-    <div className={cn('flex gap-2 rounded-xl border bg-card p-3 shadow-xs transition-colors', done && 'bg-card/60')}>
+    <div
+      className={cn(
+        'flex gap-2 rounded-xl border p-3 transition-colors',
+        // Vuota: un riquadro tratteggiato da riempire; pianificata: un foglio pieno.
+        // Una lezione passata senza niente segnato non è un problema: è andata, e basta.
+        planned ? 'bg-card shadow-xs' : past ? 'bg-card/60' : 'border-dashed border-muted-foreground/30 bg-transparent hover:bg-muted/40',
+        done && 'bg-card/60',
+      )}
+    >
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1.5 text-left">
         <div className="flex items-center justify-between gap-2 text-sm font-semibold">
           <CourseName course={course} />
@@ -244,29 +300,40 @@ function LessonCard({ slot, past, onOpen, onToggleDone }: { slot: LessonSlot; pa
             {slot.floating && `Lezione ${slot.index} · `}
             {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
             {slot.lab && ' · ITP'}
+            {slot.extra && ' · in più'}
           </span>
         </div>
-        {lesson?.activities.length ? (
+        {planned ? (
           <div className={cn('space-y-1', done && 'opacity-60')}>
-            {lesson.activities.map((a) => (
+            {lesson!.activities.map((a) => (
               <ActivityLine key={a.id} activity={a} data={data} />
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Da pianificare: tocca per scegliere</p>
+          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            {past ? (
+              'Niente segnato'
+            ) : (
+              <>
+                <PlusIcon className="size-4 shrink-0" /> Da pianificare: tocca per scegliere
+              </>
+            )}
+          </p>
         )}
         {lesson?.note && <p className="line-clamp-2 text-xs text-muted-foreground italic">{lesson.note}</p>}
       </button>
-      {(lesson?.activities.length ?? 0) > 0 && (
+      {planned && (
         <button
           type="button"
           onClick={onToggleDone}
+          // Passata: conta da sola come fatta. Se non è andata così, si apre e si salta o si sposta.
+          disabled={auto}
           aria-pressed={done}
-          aria-label={done ? 'Fatta: tocca per annullare' : 'Segna come fatta'}
-          title={done ? 'Fatta' : 'Segna come fatta'}
+          aria-label={auto ? 'Fatta' : done ? 'Fatta: tocca per annullare' : 'Segna come fatta'}
+          title={auto ? 'Fatta: è passata. Se non è andata così, aprila' : done ? 'Fatta' : 'Segna come fatta'}
           className={cn(
             'relative grid size-9 shrink-0 place-items-center self-center rounded-full border-2 transition-colors',
-            done ? 'border-border text-pencil-blue' : past ? 'border-warn text-warn' : 'border-border text-muted-foreground/50 hover:text-done',
+            done ? 'border-border text-pencil-blue' : 'border-border text-muted-foreground/50 hover:text-done',
           )}
         >
           {/* Fatta: la spunta a matita blu, che esce un po' dal cerchio come quella del prof. */}

@@ -10,7 +10,7 @@ import type { Activity, Course, Meeting, MeetingPrep, PrepItem, ProfclickData } 
 import { coursePrep } from './prep'
 
 export type TodoSource =
-  | { kind: 'activity'; course: Course; activity: Activity; floating: boolean; index: number }
+  | { kind: 'activity'; course: Course; activity: Activity; floating: boolean; index: number; hours: number }
   | { kind: 'prep'; course: Course; item: PrepItem }
   | { kind: 'meeting'; meeting: Meeting; item: MeetingPrep }
 
@@ -48,7 +48,7 @@ export function todos(data: ProfclickData, today: ISODate, until: ISODate): Todo
           id: activity.id,
           due: slot.date,
           done: Boolean(activity.ready),
-          source: { kind: 'activity', course, activity, floating: slot.floating, index: slot.index },
+          source: { kind: 'activity', course, activity, floating: slot.floating, index: slot.index, hours: slot.hours },
         })
       }
     }

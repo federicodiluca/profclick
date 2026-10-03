@@ -2,7 +2,7 @@
 // dispositivo e sul Drive dell'utente. Ogni record porta updatedAt: quando due dispositivi
 // hanno modificato i dati, l'unione (merge.ts) tiene per ogni record la versione più recente.
 
-import type { ISODate } from './dates'
+import { type ISODate, today } from './dates'
 
 export interface Stamped {
   /** Millisecondi dell'ultima modifica: decide quale versione vince nell'unione. */
@@ -172,6 +172,28 @@ export interface Lesson extends Stamped {
   /** Lezione saltata (gita, assemblea, sciopero): non conta tra quelle disponibili. */
   cancelled: boolean
   note: string
+  /** Aggiunta a mano, fuori dall'orario: supplenza, recupero, ora scambiata (ADR 0018). */
+  extra?: boolean
+  /** Lezione dell'orario tolta, o spostata in un altro giorno: non si vede e non conta. */
+  removed?: boolean
+  /** Ore, ora d'inizio e ITP di questa lezione, quando non sono quelli dell'orario. */
+  hours?: number
+  start?: number
+  lab?: boolean
+}
+
+/**
+ * Fatta: segnata a mano, oppure già passata con qualcosa in programma e non saltata (ADR 0019).
+ * Una lezione pianificata è quasi sempre una lezione fatta: non si chiede di confermarla.
+ */
+export function isDone(lesson: Lesson | undefined, now: ISODate = today()): boolean {
+  if (!lesson || lesson.cancelled) return false
+  return lesson.done || (lesson.date < now && lesson.activities.length > 0)
+}
+
+/** Fatta da sola perché passata: la spunta non si toglie, per cambiarla si salta o si sposta. */
+export function isAutoDone(lesson: Lesson | undefined, now: ISODate = today()): boolean {
+  return isDone(lesson, now) && Boolean(lesson && lesson.date < now && lesson.activities.length > 0)
 }
 
 export function lessonKey(courseId: string, date: ISODate): string {
