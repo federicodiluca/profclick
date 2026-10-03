@@ -1,5 +1,5 @@
 import { createElement, useState } from 'react'
-import { ProgressBar, Segmented, Toggle } from '@/components/bits'
+import { Segmented, Toggle } from '@/components/bits'
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, DoneIcon, MinorGradeIcon, PasteIcon, PlusIcon, PrepIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -15,7 +15,6 @@ import { assessmentLabel, type Course, GRADE_LABELS, type GradeType, isMinor, ty
 import { courseTopics, type TopicProgress, topicProgress } from '@/core/progress'
 import { GRADE_ICONS } from '@/lib/activityIcons'
 import { newId } from '@/lib/id'
-import { formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 import { CopyProgramDialog } from './CopyProgramDialog'
@@ -28,9 +27,6 @@ const STATUS_LABELS: Record<TopicProgress['status'], string> = {
   fatto: 'Fatto',
 }
 
-/** Ore stimate quando non sono indicate: circa due settimane di lezioni. */
-const DEFAULT_HOURS = 8
-
 export function ProgramTab({ course }: { course: Course }) {
   const { data, apply, applyWithUndo } = useData()
   const [editing, setEditing] = useState<Topic | 'new' | null>(null)
@@ -40,12 +36,12 @@ export function ProgramTab({ course }: { course: Course }) {
   const progress = topicProgress(data, course)
   const placed = placedAssessments(data, course.id)
   const periods = data.year!.periods
-  const totals = periods.map((p) => ({ period: p, hours: progress.filter((x) => x.topic.periodId === p.id).reduce((s, x) => s + x.topic.hours, 0) }))
+  const totals = periods.map((p) => ({ period: p, count: progress.filter((x) => x.topic.periodId === p.id && !x.topic.assessmentOnly).length }))
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{totals.map((t) => `${t.period.name}: ${formatHours(t.hours)}`).join(' · ')}</p>
+        <p className="text-sm text-muted-foreground">{totals.map((t) => `${t.period.name}: ${t.count} ${t.count === 1 ? 'argomento' : 'argomenti'}`).join(' · ')}</p>
         <div className="flex flex-wrap gap-2">
           {progress.length > 0 && (
             <Button variant="outline" onClick={() => setAsText(true)} title="Programma svolto o piano di lavoro, da incollare nel modello della scuola">
@@ -96,12 +92,12 @@ export function ProgramTab({ course }: { course: Course }) {
           return (
             <li key={p.topic.id} className="rounded-xl border bg-card p-3">
               <div className="flex items-start gap-3">
-                {/* Si spunta a mano un argomento svolto senza lezioni in calendario; se è fatto per le ore, resta fatto. */}
+                {/* Si spunta a mano un argomento svolto senza lezioni in calendario; se risulta fatto dal piano, resta fatto. */}
                 <button
                   type="button"
                   aria-pressed={p.status === 'fatto'}
                   aria-label={p.topic.completed ? `Togli fatto da ${p.topic.title}` : `Segna fatto ${p.topic.title}`}
-                  title={p.status === 'fatto' && !p.topic.completed ? 'Fatto: le sue ore sono tutte svolte' : p.topic.completed ? 'Togli fatto' : 'Segna come fatto'}
+                  title={p.status === 'fatto' && !p.topic.completed ? 'Fatto: lezioni svolte e argomento superato' : p.topic.completed ? 'Togli fatto' : 'Segna come fatto'}
                   disabled={p.status === 'fatto' && !p.topic.completed}
                   onClick={() => apply(setTopicCompleted(p.topic.id, !p.topic.completed))}
                   className={cn(
@@ -118,15 +114,12 @@ export function ProgramTab({ course }: { course: Course }) {
                       <span className="text-xs text-muted-foreground">{periods.find((x) => x.id === p.topic.periodId)?.name ?? 'Periodo da decidere'}</span>
                     </div>
                     {p.topic.points.length > 0 && <p className="text-xs text-muted-foreground">{p.topic.points.join(' · ')}</p>}
-                    {p.topic.hours > 0 && (
-                      <>
-                        <ProgressBar value={p.status === 'fatto' ? 1 : p.doneHours} max={p.status === 'fatto' ? 1 : p.topic.hours} />
-                        <p className="text-xs text-muted-foreground">
-                          {STATUS_LABELS[p.status]} · {formatHours(p.doneHours)} fatte, {formatHours(p.plannedHours)} in calendario su{' '}
-                          {formatHours(p.topic.hours)} stimate
-                          {p.firstDate && ` · ${formatShort(p.firstDate)} → ${formatShort(p.lastDate!)}`}
-                        </p>
-                      </>
+                    {!p.topic.assessmentOnly && (
+                      <p className="text-xs text-muted-foreground">
+                        {STATUS_LABELS[p.status]}
+                        {p.plannedLessons > 0 && ` · ${lessonsLine(p)}`}
+                        {p.firstDate && ` · ${formatShort(p.firstDate)} → ${formatShort(p.lastDate!)}`}
+                      </p>
                     )}
                   </button>
                   {(p.topic.assessments.length > 0 || prep > 0) && (
@@ -228,7 +221,7 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
   const periods = data.year!.periods
   const [id] = useState(() => topic?.id ?? newId())
   const [title, setTitle] = useState(topic?.title ?? '')
-  const [hours, setHours] = useState(String(topic?.hours ?? DEFAULT_HOURS))
+  const [assessmentOnly, setAssessmentOnly] = useState(Boolean(topic?.assessmentOnly))
   const [periodId, setPeriodId] = useState<string>(topic?.periodId ?? courseTopics(data, course.id).at(-1)?.periodId ?? periods[0].id)
   const [points, setPoints] = useState(topic?.points.join('\n') ?? '')
   const [assessments, setAssessments] = useState<PlannedAssessment[]>(topic?.assessments ?? [])
@@ -243,7 +236,7 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
         id,
         courseId: course.id,
         title: title.trim(),
-        hours: Math.max(0, Number(hours.replace(',', '.')) || 0),
+        ...(assessmentOnly && { assessmentOnly: true }),
         periodId: periodId === 'none' ? null : periodId,
         points: points
           .split('\n')
@@ -275,15 +268,12 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
       <DialogHeader>
         <DialogTitle>{topic ? 'Argomento' : 'Nuovo argomento'}</DialogTitle>
       </DialogHeader>
-      <div className="grid grid-cols-[1fr_auto] gap-3">
-        <div className="grid gap-1.5">
-          <Label htmlFor="topic-title">Titolo</Label>
-          <Input id="topic-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!topic} placeholder="Array e matrici" />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="topic-hours">Ore stimate</Label>
-          <Input id="topic-hours" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} className="w-20" />
-        </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="topic-title">Titolo</Label>
+        <Input id="topic-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!topic} placeholder="Array e matrici" />
+        <Toggle on={assessmentOnly} onClick={() => setAssessmentOnly(!assessmentOnly)} className="justify-self-start">
+          Solo valutazione, niente da spiegare
+        </Toggle>
       </div>
       <div className="grid gap-1.5">
         <Label>Periodo</Label>
@@ -389,17 +379,11 @@ function TopicForm({ course, topic, onClose }: { course: Course; topic?: Topic; 
 
 /**
  * Il periodo di ogni argomento: quello scritto nella nota (1️⃣, 2️⃣), altrimenti quello della
- * riga prima; se la nota non ne indica nessuno, si dividono in parti uguali per ore.
+ * riga prima; se la nota non ne indica nessuno, gli argomenti si dividono in parti uguali.
  */
 function assignPeriods(parsed: ParsedTopic[], count: number): number[] {
   if (parsed.some((t) => t.period !== null)) return parsed.map((t) => Math.min(count, t.period ?? 1) - 1)
-  const total = parsed.reduce((s, t) => s + (t.hours ?? DEFAULT_HOURS), 0)
-  let cumulative = 0
-  return parsed.map((t) => {
-    const index = Math.min(count - 1, Math.floor((cumulative / Math.max(total, 1)) * count))
-    cumulative += t.hours ?? DEFAULT_HOURS
-    return index
-  })
+  return parsed.map((_, i) => Math.min(count - 1, Math.floor((i / Math.max(parsed.length, 1)) * count)))
 }
 
 function ImportDialog({ course, open, onClose }: { course: Course; open: boolean; onClose: () => void }) {
@@ -414,7 +398,7 @@ function ImportDialog({ course, open, onClose }: { course: Course; open: boolean
     id: newId(),
     courseId: course.id,
     title: t.title,
-    hours: t.hours ?? DEFAULT_HOURS,
+    ...(t.hours === 0 && { assessmentOnly: true }),
     points: t.points,
     periodId: periods[periodIndex[i]].id,
     assessments: t.assessments.map((a) => ({ id: newId(), type: a.type, weight: a.weight ?? (a.minor ? course.rules.minorWeight : 100), text: a.text, done: t.completed })),
@@ -435,7 +419,7 @@ function ImportDialog({ course, open, onClose }: { course: Course; open: boolean
         <DialogHeader>
           <DialogTitle>Incolla il programma</DialogTitle>
           <DialogDescription>
-            Va bene quasi tutto: un elenco di argomenti (le righe rientrate diventano sotto-punti, le ore si leggono se scritte come "(10h)"), l'elenco dei
+            Va bene quasi tutto: un elenco di argomenti (le righe rientrate diventano sotto-punti), l'elenco dei
             voti come "Reti (orale, 30%)", con i numeri di Keep per il quadrimestre, o la lista dei prossimi passi con i simboli di Keep per le verifiche
             e la freccia dove sei arrivato.
           </DialogDescription>
@@ -445,14 +429,13 @@ function ImportDialog({ course, open, onClose }: { course: Course; open: boolean
           onChange={(e) => setText(e.target.value)}
           rows={10}
           autoFocus
-          placeholder={'Architettura dei calcolatori (10h)\n  CPU e memoria\nProgetto computer (pratico, 30%)\nSistemi di numerazione (scritto)'}
+          placeholder={'Architettura dei calcolatori\n  CPU e memoria\nProgetto computer (pratico, 30%)\nSistemi di numerazione (scritto)'}
           className="font-mono text-xs"
         />
         {parsed.length > 0 && (
           <div className="space-y-1 rounded-lg bg-muted p-3 text-sm">
             <p className="text-xs font-medium text-muted-foreground">
-              Anteprima: {parsed.length} argomenti, {parsed.reduce((s, t) => s + t.assessments.length, 0)} valutazioni. Le ore mancanti diventano {DEFAULT_HOURS}: le
-              correggi dopo.
+              Anteprima: {parsed.length} argomenti, {parsed.reduce((s, t) => s + t.assessments.length, 0)} valutazioni.
             </p>
             <ol className="list-decimal space-y-1.5 pl-5">
               {parsed.map((t, i) => (
@@ -460,7 +443,8 @@ function ImportDialog({ course, open, onClose }: { course: Course; open: boolean
                   <span className={cn(t.completed && 'text-muted-foreground line-through')}>{t.title}</span>
                   <span className="text-muted-foreground">
                     {' '}
-                    · {t.hours ?? `${DEFAULT_HOURS}?`} h · {periods[periodIndex[i]].name}
+                    · {t.hours === 0 && 'solo valutazione · '}
+                    {periods[periodIndex[i]].name}
                   </span>
                   {t.points.length > 0 && <span className="block text-xs text-muted-foreground">{t.points.join(' · ')}</span>}
                   {t.assessments.length > 0 && (
@@ -486,4 +470,12 @@ function ImportDialog({ course, open, onClose }: { course: Course; open: boolean
       </DialogContent>
     </Dialog>
   )
+}
+
+/** "3 fatte su 5 in calendario" */
+function lessonsLine(p: TopicProgress): string {
+  const n = (x: number) => (x === 1 ? 'una lezione' : `${x} lezioni`)
+  if (p.doneLessons === 0) return `${n(p.plannedLessons)} in calendario`
+  if (p.doneLessons >= p.plannedLessons) return `${n(p.doneLessons)} ${p.doneLessons === 1 ? 'fatta' : 'fatte'}`
+  return `${p.doneLessons} ${p.doneLessons === 1 ? 'fatta' : 'fatte'} su ${p.plannedLessons} in calendario`
 }

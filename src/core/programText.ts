@@ -20,20 +20,15 @@ export interface ProgramTextInput {
   topics: { topic: ArchivedTopic; status: TopicProgress['status'] }[]
 }
 
-function hours(h: number): string {
-  return `${String(Math.round(h * 10) / 10).replace('.', ',')} ${h === 1 ? 'ora' : 'ore'}`
-}
-
 /** Una voce che è solo una valutazione (es. prova parallela) non è programma. */
 function isContent(topic: ArchivedTopic): boolean {
-  return topic.hours > 0 || topic.points.length > 0
+  return !topic.assessmentOnly
 }
 
 function block(entry: ProgramTextInput['topics'][number], kind: ProgramTextKind): string[] {
   const { topic, status } = entry
-  const notes = [kind === 'piano' && topic.hours > 0 && hours(topic.hours), kind === 'svolto' && status !== 'fatto' && 'svolto in parte']
-  const extra = notes.filter(Boolean).join(', ')
-  return [`${topic.title}${extra ? ` (${extra})` : ''}`, ...topic.points.map((p) => `- ${p}`)]
+  const extra = kind === 'svolto' && status !== 'fatto' ? ' (svolto in parte)' : ''
+  return [`${topic.title}${extra}`, ...topic.points.map((p) => `- ${p}`)]
 }
 
 export function programText(input: ProgramTextInput, kind: ProgramTextKind, byPeriod: boolean): string {

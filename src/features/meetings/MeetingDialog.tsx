@@ -10,8 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { deleteMeeting, saveMeeting } from '@/core/actions'
 import { googleCalendarLink, meetingEntry } from '@/core/calendarExport'
 import { formatLong, type ISODate, today } from '@/core/dates'
-import { classNames, classSummary, defaultPrep, hasCoordinatorPrep, periodEnded, summaryLine, summaryText, updateDefaultPrep, wasCoordinator } from '@/core/meetings'
-import { isClassMeeting, type Meeting, MEETING_KINDS, MEETING_LABELS, type MeetingKind, meetingLabel, type ProfclickData } from '@/core/model'
+import { classNames, classSummary, defaultPrep, hasCoordinatorPrep, hasMinutes, periodEnded, summaryLine, summaryText, updateDefaultPrep, wasCoordinator, wroteMinutes } from '@/core/meetings'
+import { isClassMeeting, type Meeting, MEETING_KINDS, MEETING_LABELS, type MeetingKind, meetingLabel, type MeetingPrep, type ProfclickData } from '@/core/model'
 import { newId } from '@/lib/id'
 import { cn } from '@/lib/utils'
 import { useAutosave } from '@/lib/useAutosave'
@@ -44,14 +44,14 @@ export function MeetingDialog({ open, date, onClose }: { open: string | null; da
 function blank(data: ProfclickData, date: ISODate): Draft {
   const className = classNames(data)[0] ?? null
   const coordinator = className ? wasCoordinator(data, className) : false
-  return { id: newId(), kind: 'cdc', date, time: '', className, title: '', coordinator, prep: defaultPrep('cdc', coordinator, newId), notes: '' }
+  const minutes = wroteMinutes(data, 'cdc', className)
+  return { id: newId(), kind: 'cdc', date, time: '', className, title: '', coordinator, minutes, prep: defaultPrep('cdc', { coordinator, minutes }, newId), notes: '' }
 }
 
 function MeetingForm({ id, date, onClose }: { id: string | null; date?: ISODate; onClose: () => void }) {
   const { data, apply, applyWithUndo } = useData()
   const saved = id ? data.meetings[id] : undefined
   const [draft, setDraft] = useState<Draft>(() => blank(data, date ?? today()))
-  const [newItem, setNewItem] = useState('')
   // I testi si salvano anche a dialogo chiuso; di una riunione appena eliminata, niente.
   const saveText = (patch: Partial<Draft>) => {
     if (saved) apply(saveMeeting({ ...saved, ...patch }))
@@ -75,20 +75,17 @@ function MeetingForm({ id, date, onClose }: { id: string | null; date?: ISODate;
   const setKind = (kind: MeetingKind) => {
     const className = isClassMeeting(kind) ? (meeting.className ?? classes[0] ?? null) : null
     const coordinator = className === meeting.className ? meeting.coordinator : className ? wasCoordinator(data, className) : false
-    set({ kind, className, coordinator, prep: updateDefaultPrep(meeting.prep, meeting, { kind, coordinator }, newId) })
+    const minutes = wroteMinutes(data, kind, className)
+    set({ kind, className, coordinator, minutes, prep: updateDefaultPrep(meeting.prep, meeting, { kind, coordinator, minutes }, newId) })
   }
   const setClass = (className: string) => {
     const coordinator = wasCoordinator(data, className)
-    set({ className, coordinator, prep: updateDefaultPrep(meeting.prep, meeting, { kind: meeting.kind, coordinator }, newId) })
+    const minutes = wroteMinutes(data, meeting.kind, className)
+    set({ className, coordinator, minutes, prep: updateDefaultPrep(meeting.prep, meeting, { kind: meeting.kind, coordinator, minutes }, newId) })
   }
-  const toggleCoordinator = () => {
-    const coordinator = !meeting.coordinator
-    set({ coordinator, prep: updateDefaultPrep(meeting.prep, meeting, { kind: meeting.kind, coordinator }, newId) })
-  }
-  const addItem = () => {
-    if (!newItem.trim()) return
-    set({ prep: [...meeting.prep, { id: newId(), text: newItem.trim(), done: false }] })
-    setNewItem('')
+  const toggleRole = (role: 'coordinator' | 'minutes') => {
+    const roles = { coordinator: meeting.coordinator, minutes: Boolean(meeting.minutes), [role]: !meeting[role] }
+    set({ ...roles, prep: updateDefaultPrep(meeting.prep, meeting, { kind: meeting.kind, ...roles }, newId) })
   }
   const copySummary = () => {
     if (!summary) return
@@ -114,9 +111,18 @@ function MeetingForm({ id, date, onClose }: { id: string | null; date?: ISODate;
         {forClass && classes.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <Segmented value={meeting.className ?? ''} onChange={setClass} options={classes.map((c) => ({ value: c, label: c }))} />
-            {hasCoordinatorPrep(meeting.kind) && meeting.className && (
-              <Toggle on={meeting.coordinator} onClick={toggleCoordinator}>
+          </div>
+        )}
+        {(hasMinutes(meeting.kind) || (forClass && hasCoordinatorPrep(meeting.kind) && meeting.className)) && (
+          <div className="flex flex-wrap gap-2">
+            {forClass && hasCoordinatorPrep(meeting.kind) && meeting.className && (
+              <Toggle on={meeting.coordinator} onClick={() => toggleRole('coordinator')}>
                 Sono coordinatore
+              </Toggle>
+            )}
+            {hasMinutes(meeting.kind) && (
+              <Toggle on={Boolean(meeting.minutes)} onClick={() => toggleRole('minutes')}>
+                Scrivo il verbale
               </Toggle>
             )}
           </div>
@@ -144,41 +150,21 @@ function MeetingForm({ id, date, onClose }: { id: string | null; date?: ISODate;
         </div>
       </div>
 
-      <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Da preparare</h3>
-        {meeting.prep.length > 0 && (
-          <ul className="divide-y rounded-xl border bg-card">
-            {meeting.prep.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 px-3 py-1.5 text-sm">
-                <input
-                  type="checkbox"
-                  checked={item.done}
-                  onChange={() => set({ prep: meeting.prep.map((p) => (p.id === item.id ? { ...p, done: !p.done } : p)) })}
-                  className="size-4 shrink-0 accent-[var(--done)]"
-                  aria-label={`Pronto: ${item.text}`}
-                />
-                <span className={cn('min-w-0 flex-1', item.done && 'text-muted-foreground line-through')}>{item.text}</span>
-                <Button variant="ghost" size="icon-sm" aria-label={`Togli ${item.text}`} onClick={() => set({ prep: meeting.prep.filter((p) => p.id !== item.id) })}>
-                  <TrashIcon />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            addItem()
-          }}
-        >
-          <Input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="Relazione, documenti da leggere, proposte…" className="flex-1" />
-          <Button type="submit" variant="outline" disabled={!newItem.trim()}>
-            <PlusIcon /> Aggiungi
-          </Button>
-        </form>
-        <p className="text-xs text-muted-foreground">Compare nella settimana, nel Da preparare, quando la riunione si avvicina.</p>
-      </section>
+      <PrepList
+        title="Da preparare"
+        items={meeting.prep.filter((p) => !p.after)}
+        placeholder="Relazione, documenti da leggere, proposte…"
+        hint="Compare nella settimana e nel Da fare quando la riunione si avvicina."
+        onChange={(items) => set({ prep: [...items, ...meeting.prep.filter((p) => p.after)] })}
+      />
+      <PrepList
+        title="Da fare dopo"
+        items={meeting.prep.filter((p) => p.after)}
+        after
+        placeholder="Verbale, comunicazioni alle famiglie, relazione…"
+        hint="Resta nel Da fare, anche passata la riunione, finché non la spunti."
+        onChange={(items) => set({ prep: [...meeting.prep.filter((p) => !p.after), ...items] })}
+      />
 
       {summary && (
         <section className="space-y-2">
@@ -255,5 +241,52 @@ function MeetingForm({ id, date, onClose }: { id: string | null; date?: ISODate;
         )}
       </DialogFooter>
     </>
+  )
+}
+
+/** Le voci di una riunione, prima o dopo: da spuntare, togliere, aggiungere. */
+function PrepList({ title, items, after, placeholder, hint, onChange }: { title: string; items: MeetingPrep[]; after?: boolean; placeholder: string; hint: string; onChange: (items: MeetingPrep[]) => void }) {
+  const [text, setText] = useState('')
+  const add = () => {
+    if (!text.trim()) return
+    onChange([...items, { id: newId(), text: text.trim(), done: false, ...(after && { after: true }) }])
+    setText('')
+  }
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {items.length > 0 && (
+        <ul className="divide-y rounded-xl border bg-card">
+          {items.map((item) => (
+            <li key={item.id} className="flex items-center gap-3 px-3 py-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={item.done}
+                onChange={() => onChange(items.map((p) => (p.id === item.id ? { ...p, done: !p.done } : p)))}
+                className="size-4 shrink-0 accent-[var(--done)]"
+                aria-label={`${after ? 'Fatto' : 'Pronto'}: ${item.text}`}
+              />
+              <span className={cn('min-w-0 flex-1', item.done && 'text-muted-foreground line-through')}>{item.text}</span>
+              <Button variant="ghost" size="icon-sm" aria-label={`Togli ${item.text}`} onClick={() => onChange(items.filter((p) => p.id !== item.id))}>
+                <TrashIcon />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          add()
+        }}
+      >
+        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} className="flex-1" aria-label={`Aggiungi a ${title.toLowerCase()}`} />
+        <Button type="submit" variant="outline" disabled={!text.trim()}>
+          <PlusIcon /> Aggiungi
+        </Button>
+      </form>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+    </section>
   )
 }

@@ -483,7 +483,7 @@ export function toggleMeetingPrep(meetingId: string, itemId: string): Change {
 
 /**
  * Il programma di un'altra classe, di quest'anno o di un anno passato, copiato in coda a
- * quello della classe: argomenti, ore, sotto-punti e valutazioni previste, tutto da fare.
+ * quello della classe: argomenti, sotto-punti e valutazioni previste, tutto da fare.
  */
 export function copyProgram(source: ProgramSource, courseId: string, newId: () => string): Change {
   return (data) => {

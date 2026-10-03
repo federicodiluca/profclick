@@ -1,9 +1,10 @@
-// Avanzamento del programma: per ogni argomento, le ore messe in calendario e quelle
+// Avanzamento del programma: per ogni argomento, le lezioni messe in calendario e quelle
 // già svolte. Le ore di una lezione si dividono in parti uguali tra le sue attività:
-// è una stima, ma basta per capire se si è in ritardo.
+// è una stima, ma basta per capire a che punto si è.
 
 import { courseSlots, isAvailable } from './calendar'
 import type { ISODate } from './dates'
+import { placedAssessments } from './grading'
 import { type ActivityKind, type Course, isDone, type ProfclickData, type Topic } from './model'
 
 /** Le attività che fanno avanzare il programma. */
@@ -13,6 +14,9 @@ export interface TopicProgress {
   topic: Topic
   plannedHours: number
   doneHours: number
+  /** Lezioni in cui compare, in calendario e già fatte. */
+  plannedLessons: number
+  doneLessons: number
   /** Prima e ultima lezione in cui compare. */
   firstDate?: ISODate
   lastDate?: ISODate
@@ -26,18 +30,24 @@ export function courseTopics(data: ProfclickData, courseId: string): Topic[] {
 }
 
 export function topicProgress(data: ProfclickData, course: Course): TopicProgress[] {
-  const byTopic = new Map<string, { planned: number; done: number; first?: ISODate; last?: ISODate }>()
+  const byTopic = new Map<string, { planned: number; done: number; plannedLessons: number; doneLessons: number; first?: ISODate; last?: ISODate }>()
   for (const slot of courseSlots(data, course)) {
     const lesson = slot.lesson
     if (!lesson || !isAvailable(slot) || lesson.activities.length === 0) continue
     const share = slot.hours / lesson.activities.length
+    const counted = new Set<string>()
     for (const activity of lesson.activities) {
       if (!TEACHING_KINDS.includes(activity.kind)) continue
       for (const id of activity.topicIds) {
-        const entry = byTopic.get(id) ?? { planned: 0, done: 0 }
+        const entry = byTopic.get(id) ?? { planned: 0, done: 0, plannedLessons: 0, doneLessons: 0 }
         const hours = share / activity.topicIds.length
         entry.planned += hours
         if (isDone(lesson)) entry.done += hours
+        if (!counted.has(id)) {
+          counted.add(id)
+          entry.plannedLessons++
+          if (isDone(lesson)) entry.doneLessons++
+        }
         entry.first ??= slot.date
         entry.last = slot.date
         byTopic.set(id, entry)
@@ -45,19 +55,24 @@ export function topicProgress(data: ProfclickData, course: Course): TopicProgres
     }
   }
 
-  return courseTopics(data, course.id).map((topic) => {
+  // Senza ore stimate (ADR 0020), un argomento è fatto quando le sue lezioni sono tutte fatte
+  // e si è andati avanti: è iniziato un argomento dopo, o c'è stata una sua valutazione.
+  const placed = placedAssessments(data, course.id)
+  const assessed = (topic: Topic) => topic.assessments.some((a) => a.done || placed.get(a.id)?.done)
+  const topics = courseTopics(data, course.id)
+  return topics.map((topic, i) => {
     const entry = byTopic.get(topic.id)
     const plannedHours = entry?.planned ?? 0
     const doneHours = entry?.done ?? 0
+    const plannedLessons = entry?.plannedLessons ?? 0
+    const doneLessons = entry?.doneLessons ?? 0
+    const movedOn = topics.slice(i + 1).some((t) => (byTopic.get(t.id)?.doneLessons ?? 0) > 0) || assessed(topic)
+    const finished = topic.assessmentOnly
+      ? topic.assessments.length > 0 && topic.assessments.every((a) => a.done || placed.get(a.id)?.done)
+      : plannedLessons > 0 && doneLessons >= plannedLessons && movedOn
     const status: TopicProgress['status'] =
-      topic.completed || (plannedHours > 0 && doneHours >= Math.max(plannedHours, topic.hours) - 0.01)
-        ? 'fatto'
-        : doneHours > 0
-          ? 'in-corso'
-          : plannedHours > 0
-            ? 'pianificato'
-            : 'da-pianificare'
-    return { topic, plannedHours, doneHours, firstDate: entry?.first, lastDate: entry?.last, status }
+      topic.completed || finished ? 'fatto' : doneLessons > 0 ? 'in-corso' : plannedLessons > 0 || (topic.assessmentOnly && topic.assessments.some((a) => placed.has(a.id))) ? 'pianificato' : 'da-pianificare'
+    return { topic, plannedHours, doneHours, plannedLessons, doneLessons, firstDate: entry?.first, lastDate: entry?.last, status }
   })
 }
 

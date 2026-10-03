@@ -151,3 +151,32 @@ export function floatingSlotsOfWeek(data: ProfclickData, monday: ISODate): Lesso
     .flatMap((c) => courseSlots(data, c, monday, sunday))
     .filter((s) => s.floating)
 }
+
+/**
+ * Le settimane di scuola di un periodo (il lunedì di ognuna): quelle con almeno un giorno da
+ * lunedì a sabato fuori dalle vacanze. Misurano il periodo meglio dei giorni, che contano anche
+ * le vacanze di Natale.
+ */
+export function schoolWeeks(year: SchoolYear, period: Period): ISODate[] {
+  const weeks: ISODate[] = []
+  for (const date of eachDay(period.start, period.end)) {
+    const monday = startOfWeek(date)
+    if (weekday(date) === 7 || holidayOn(year, date) || weeks.at(-1) === monday) continue
+    weeks.push(monday)
+  }
+  return weeks
+}
+
+/**
+ * L'ultimo giorno di scuola della settimana, ricavato dall'orario: il sabato se qualche classe
+ * ha lezione il sabato, altrimenti il venerdì. Senza giorni nell'orario non si sa, e vale il sabato.
+ */
+export function lastSchoolDay(data: ProfclickData): number {
+  const days = Object.values(data.courses).flatMap((c) => c.schedule.filter((s) => s.hours > 0 && s.day !== null).map((s) => s.day!))
+  return days.length ? Math.max(5, ...days) : 6
+}
+
+/** La settimana da mostrare a una data: finita la scuola della settimana, quella dopo. */
+export function weekToShow(data: ProfclickData, date: ISODate): ISODate {
+  return startOfWeek(weekday(date) > lastSchoolDay(data) ? addDays(date, 7) : date)
+}

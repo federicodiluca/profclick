@@ -5,20 +5,21 @@ import { CancelledIcon, DoneIcon, SuggestIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { applyProposal } from '@/core/actions'
 import { currentPeriod, isAvailable, periodSlots } from '@/core/calendar'
-import { formatShort, startOfWeek, today } from '@/core/dates'
+import { formatRange, formatShort, startOfWeek, today } from '@/core/dates'
 import { periodGrades } from '@/core/grading'
 import { type Course, GRADE_LABELS, isDone } from '@/core/model'
-import { courseTopics } from '@/core/progress'
-import { type Proposal, proposePlan } from '@/core/proposal'
+import { topicProgress } from '@/core/progress'
+import { freeSlots, type Proposal } from '@/core/proposal'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { newId } from '@/lib/id'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
+import { ProposeDialog } from './ProposeDialog'
 
 /**
- * Il piano di un periodo, lezione per lezione (ADR 0006). La proposta automatica riempie
- * le lezioni vuote con gli argomenti e le valutazioni che mancano: si vede tratteggiata,
- * e diventa piano solo con "Applica".
+ * Il piano di un periodo, lezione per lezione (ADR 0006). La proposta riempie le lezioni vuote
+ * delle prossime settimane con gli argomenti scelti (ADR 0020): si vede tratteggiata, e
+ * diventa piano solo con "Applica".
  */
 export function PlanTab({ course, onShowGrades }: { course: Course; onShowGrades?: () => void }) {
   const { data, applyWithUndo } = useData()
@@ -28,20 +29,22 @@ export function PlanTab({ course, onShowGrades }: { course: Course; onShowGrades
   const period = year.periods.find((p) => p.id === periodId) ?? year.periods[0]
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [showPast, setShowPast] = useState(false)
+  const [choosing, setChoosing] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
 
   const slots = periodSlots(data, course, period)
   const available = slots.filter(isAvailable)
   const grades = periodGrades(data, course, period, now)
-  const topics = courseTopics(data, course.id).filter((t) => t.periodId === period.id || t.periodId === null)
-  const programHours = topics.filter((t) => !t.completed).reduce((sum, t) => sum + t.hours, 0)
+  const topics = topicProgress(data, course).filter((p) => p.topic.periodId === period.id || p.topic.periodId === null)
+  const topicsLeft = topics.filter((p) => p.status !== 'fatto' && !p.topic.assessmentOnly).length
+  const weeksToPlan = new Set(freeSlots(data, course, period, now).map((s) => startOfWeek(s.date))).size
   const proposed = useMemo(() => new Map(proposal?.lessons.map((l) => [l.date, l.activity])), [proposal])
   const past = slots.filter((s) => s.date < now)
   const visible = showPast ? slots : slots.filter((s) => s.date >= now)
 
-  const propose = () => {
-    const p = proposePlan(data, course, period, now)
+  const propose = (p: Proposal) => {
     setProposal(p)
+    setChoosing(false)
     setShowPast(false)
   }
 
@@ -62,10 +65,9 @@ export function PlanTab({ course, onShowGrades }: { course: Course; onShowGrades
         <Stat label="Lezioni" value={String(available.length)} hint={formatHours(available.reduce((s, x) => s + x.hours, 0))} />
         <Stat label="Da oggi" value={String(grades.remainingLessons)} hint={`${grades.freeLessons} ancora libere`} />
         <Stat
-          label="Programma"
-          value={formatHours(programHours)}
-          hint={`${topics.length} argomenti`}
-          tone={programHours > grades.remainingHours && grades.remainingLessons > 0 ? 'warn' : undefined}
+          label="Da pianificare"
+          value={weeksToPlan === 1 ? '1 settimana' : `${weeksToPlan} settimane`}
+          hint={topicsLeft === 1 ? 'un argomento da fare' : `${topicsLeft} argomenti da fare`}
         />
         <Stat
           label="Voti"
@@ -87,26 +89,13 @@ export function PlanTab({ course, onShowGrades }: { course: Course; onShowGrades
       {proposal ? (
         <div className="space-y-3 rounded-xl border border-dashed border-primary/50 bg-primary/5 p-4">
           <p className="text-sm">
-            {proposal.lessons.length === 0 ? (
-              proposal.spareLessons > 0
-                ? `Il piano è già completo: programma e voti ci sono tutti. Restano ${proposal.spareLessons} lezioni libere per ripassi e recuperi.`
-                : 'Nessuna lezione libera da riempire in questo periodo.'
-            ) : (
-              <>
-                Proposta: <strong>{proposal.lessons.length - proposal.assessments} lezioni</strong> di programma e{' '}
-                <strong>{proposal.assessments} valutazioni</strong>, sulle lezioni ancora vuote.
-                {proposal.overflowHours > 0 && (
-                  <span className="text-pencil-red"> Restano fuori {formatHours(proposal.overflowHours)} di programma: conviene accorciare qualche argomento o spostarlo al periodo dopo.</span>
-                )}
-                {proposal.overflowAssessments > 0 && (
-                  <span className="text-pencil-red">
-                    {' '}
-                    {proposal.overflowAssessments === 1 ? 'Una valutazione prevista non ci sta' : `${proposal.overflowAssessments} valutazioni previste non ci stanno`}.
-                  </span>
-                )}
-                {proposal.spareLessons > 0 && ` Restano ${proposal.spareLessons} lezioni libere per ripassi e recuperi.`}
-              </>
+            Proposta {formatRange(proposal.from, proposal.to)}: <strong>{proposal.lessons.length - proposal.assessments} lezioni</strong> di programma e{' '}
+            <strong>{proposal.assessments} valutazioni</strong>, sulle lezioni ancora vuote.
+            {proposal.overflowTopics.length > 0 && <span className="text-pencil-red"> Non ci stanno: {proposal.overflowTopics.map((t) => t.title).join(', ')}.</span>}
+            {proposal.overflowAssessments > 0 && (
+              <span className="text-pencil-red"> {proposal.overflowAssessments === 1 ? 'Una valutazione prevista non ci sta.' : `${proposal.overflowAssessments} valutazioni previste non ci stanno.`}</span>
             )}
+            {proposal.spareLessons > 0 && ` Restano ${proposal.spareLessons === 1 ? 'una lezione libera' : `${proposal.spareLessons} lezioni libere`}.`}
           </p>
           <div className="flex gap-2">
             <Button
@@ -125,13 +114,13 @@ export function PlanTab({ course, onShowGrades }: { course: Course; onShowGrades
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={propose} disabled={topics.length === 0 && grades.missing === 0}>
+          <Button onClick={() => setChoosing(true)} disabled={topics.length === 0 || grades.freeLessons === 0}>
             <SuggestIcon /> Proponi piano
           </Button>
           <p className="text-sm text-muted-foreground">
             {topics.length === 0
-              ? 'Aggiungi gli argomenti nel Programma per avere una proposta completa.'
-              : 'Riempie le lezioni vuote con gli argomenti e le valutazioni che mancano. Il piano già fatto non si tocca.'}
+              ? 'Aggiungi gli argomenti nel Programma per avere una proposta.'
+              : 'Scegli gli argomenti e su quante settimane: riempie le lezioni vuote, il piano già fatto non si tocca.'}
           </p>
         </div>
       )}
@@ -185,6 +174,7 @@ export function PlanTab({ course, onShowGrades }: { course: Course; onShowGrades
       </div>
 
       <LessonDialog courseId={course.id} date={open} onClose={() => setOpen(null)} />
+      <ProposeDialog course={course} period={period} open={choosing} onClose={() => setChoosing(false)} onPropose={propose} />
     </div>
   )
 }

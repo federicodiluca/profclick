@@ -7,49 +7,73 @@ import { periodGrades, type PeriodGrades } from './grading'
 import { type Course, courseLabel, GRADE_LABELS, type GradeType, isClassMeeting, type Meeting, type MeetingKind, type MeetingPrep, meetingLabel, type Period, type ProfclickData, type SchoolYear } from './model'
 import { topicProgress } from './progress'
 
-/** Le cose da preparare di ogni tipo di riunione: per tutti e in più per il coordinatore. */
-const DEFAULT_PREP: Record<MeetingKind, { all: string[]; coordinator: string[] }> = {
-  cdc: { all: ['Punti da portare al consiglio'], coordinator: ['Raccogliere le segnalazioni dei colleghi', 'Verbale'] },
-  scrutinio: {
-    all: ['Proposte di voto sul registro', 'Argomenti da recuperare per le insufficienze'],
-    coordinator: ['Proposta del voto di comportamento', 'Giudizi e verbale', 'Comunicazioni alle famiglie'],
-  },
-  glo: { all: ['Rileggere il PEI', 'Osservazioni per la mia materia'], coordinator: ['Verbale del GLO'] },
-  collegio: { all: ['Leggere i documenti della convocazione'], coordinator: [] },
-  dipartimento: { all: ["Leggere l'ordine del giorno"], coordinator: [] },
-  corso: { all: [], coordinator: [] },
-  altro: { all: [], coordinator: [] },
-}
-
-export function hasCoordinatorPrep(kind: MeetingKind): boolean {
-  return DEFAULT_PREP[kind].coordinator.length > 0
-}
-
-function defaultTexts(kind: MeetingKind, coordinator: boolean): string[] {
-  const d = DEFAULT_PREP[kind]
-  return coordinator ? [...d.all, ...d.coordinator] : d.all
-}
-
-/** Le cose da preparare proposte per una nuova riunione. */
-export function defaultPrep(kind: MeetingKind, coordinator: boolean, newId: () => string): MeetingPrep[] {
-  return defaultTexts(kind, coordinator).map((text) => ({ id: newId(), text, done: false }))
+/** I ruoli che aggiungono voci: coordinatore della classe, chi scrive il verbale. */
+export interface MeetingRoles {
+  coordinator: boolean
+  minutes?: boolean
 }
 
 /**
- * Cambiando tipo o coordinatore, le voci proposte che non si sono toccate lasciano il posto
+ * Le voci proposte per ogni tipo di riunione: da preparare per tutti e in più per il
+ * coordinatore, da fare dopo per tutti, il verbale per chi lo scrive.
+ */
+const DEFAULT_PREP: Record<MeetingKind, { all: string[]; coordinator: string[]; after: string[]; coordinatorAfter: string[]; minutes: string | null }> = {
+  cdc: { all: ['Punti da portare al consiglio'], coordinator: ['Raccogliere le segnalazioni dei colleghi'], after: [], coordinatorAfter: [], minutes: 'Verbale del consiglio' },
+  scrutinio: {
+    all: ['Proposte di voto sul registro', 'Argomenti da recuperare per le insufficienze'],
+    coordinator: ['Proposta del voto di comportamento', 'Giudizi'],
+    after: [],
+    coordinatorAfter: ['Comunicazioni alle famiglie'],
+    minutes: 'Verbale dello scrutinio',
+  },
+  glo: { all: ['Rileggere il PEI', 'Osservazioni per la mia materia'], coordinator: ['Raccogliere le osservazioni dei colleghi'], after: [], coordinatorAfter: [], minutes: 'Verbale del GLO' },
+  collegio: { all: ['Leggere i documenti della convocazione'], coordinator: [], after: [], coordinatorAfter: [], minutes: 'Verbale del collegio' },
+  dipartimento: { all: ["Leggere l'ordine del giorno"], coordinator: [], after: [], coordinatorAfter: [], minutes: 'Verbale del dipartimento' },
+  corso: { all: [], coordinator: [], after: ["Salvare l'attestato"], coordinatorAfter: [], minutes: null },
+  altro: { all: [], coordinator: [], after: [], coordinatorAfter: [], minutes: null },
+}
+
+export function hasCoordinatorPrep(kind: MeetingKind): boolean {
+  const d = DEFAULT_PREP[kind]
+  return d.coordinator.length + d.coordinatorAfter.length > 0
+}
+
+/** Riunioni con un verbale, che qualcuno scrive. */
+export function hasMinutes(kind: MeetingKind): boolean {
+  return DEFAULT_PREP[kind].minutes !== null
+}
+
+function defaultItems(kind: MeetingKind, roles: MeetingRoles): { text: string; after: boolean }[] {
+  const d = DEFAULT_PREP[kind]
+  const before = roles.coordinator ? [...d.all, ...d.coordinator] : d.all
+  const after = [...d.after, ...(roles.coordinator ? d.coordinatorAfter : []), ...(roles.minutes && d.minutes ? [d.minutes] : [])]
+  return [...before.map((text) => ({ text, after: false })), ...after.map((text) => ({ text, after: true }))]
+}
+
+function item(text: string, after: boolean, newId: () => string): MeetingPrep {
+  return { id: newId(), text, done: false, ...(after && { after: true }) }
+}
+
+/** Le voci proposte per una nuova riunione. */
+export function defaultPrep(kind: MeetingKind, roles: MeetingRoles, newId: () => string): MeetingPrep[] {
+  return defaultItems(kind, roles).map((d) => item(d.text, d.after, newId))
+}
+
+/**
+ * Cambiando tipo o ruoli, le voci proposte che non si sono toccate lasciano il posto
  * a quelle nuove; quelle scritte a mano o già spuntate restano.
  */
 export function updateDefaultPrep(
   prep: MeetingPrep[],
-  from: { kind: MeetingKind; coordinator: boolean },
-  to: { kind: MeetingKind; coordinator: boolean },
+  from: { kind: MeetingKind } & MeetingRoles,
+  to: { kind: MeetingKind } & MeetingRoles,
   newId: () => string,
 ): MeetingPrep[] {
-  const old = new Set(defaultTexts(from.kind, from.coordinator))
+  const old = new Set(defaultItems(from.kind, from).map((d) => d.text))
   const kept = prep.filter((p) => p.done || !old.has(p.text))
   const texts = new Set(kept.map((p) => p.text))
-  const added = defaultTexts(to.kind, to.coordinator).filter((t) => !texts.has(t))
-  return [...added.map((text) => ({ id: newId(), text, done: false })), ...kept]
+  const added = defaultItems(to.kind, to).filter((d) => !texts.has(d.text))
+  return [...added.map((d) => item(d.text, d.after, newId)), ...kept]
 }
 
 /** Coordinatore di una classe? Lo dice l'ultima riunione di quella classe. */
@@ -59,6 +83,20 @@ export function wasCoordinator(data: ProfclickData, className: string): boolean 
     .sort((a, b) => a.date.localeCompare(b.date) || a.updatedAt - b.updatedAt)
     .at(-1)
   return last?.coordinator ?? false
+}
+
+/** Scrive il verbale? Lo dice l'ultima riunione dello stesso tipo, e della stessa classe se è di classe. */
+export function wroteMinutes(data: ProfclickData, kind: MeetingKind, className: string | null): boolean {
+  const last = Object.values(data.meetings)
+    .filter((m) => m.kind === kind && m.className === className)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.updatedAt - b.updatedAt)
+    .at(-1)
+  return last?.minutes ?? false
+}
+
+/** Le voci da fare dopo una riunione passata e non ancora fatte: il verbale da scrivere. */
+export function pendingAfter(meeting: Meeting): MeetingPrep[] {
+  return meeting.prep.filter((p) => p.after && !p.done && p.text.trim())
 }
 
 /** I nomi delle classi, senza doppioni: chi ha due materie nella stessa classe va a un solo consiglio. */
@@ -81,11 +119,11 @@ export interface MeetingPrepDue {
   due: ISODate
 }
 
-/** Le cose ancora da preparare per le riunioni da oggi in poi. */
+/** Le cose ancora da preparare per le riunioni da oggi in poi, e quelle da fare dopo le riunioni passate. */
 export function openMeetingPrep(data: ProfclickData, today: ISODate): MeetingPrepDue[] {
-  return sortedMeetings(data)
-    .filter((m) => m.date >= today)
-    .flatMap((meeting) => meeting.prep.filter((p) => !p.done && p.text.trim()).map((item) => ({ meeting, item, due: meeting.date })))
+  return sortedMeetings(data).flatMap((meeting) =>
+    meeting.prep.filter((p) => !p.done && p.text.trim() && (meeting.date >= today || p.after)).map((item) => ({ meeting, item, due: meeting.date })),
+  )
 }
 
 // --- Riepilogo della classe -------------------------------------------------------------
@@ -110,8 +148,6 @@ export interface CourseSummary {
   topicsTotal: number
   /** Argomenti del periodo non ancora svolti. */
   topicsLeft: string[]
-  /** Ore di programma che non ci stanno più nelle lezioni rimaste del periodo. */
-  hoursBehind: number
 }
 
 export interface ClassSummary {
@@ -132,7 +168,6 @@ export function classSummary(data: ProfclickData, meeting: Pick<Meeting, 'kind' 
       const done = grades.full.filter((g) => g.done)
       const topics = topicProgress(data, course).filter((p) => p.topic.periodId === period.id)
       const left = topics.filter((p) => p.status !== 'fatto')
-      const hoursLeft = left.reduce((sum, p) => sum + Math.max(0, p.topic.hours - p.doneHours), 0)
       return {
         course,
         grades,
@@ -141,7 +176,6 @@ export function classSummary(data: ProfclickData, meeting: Pick<Meeting, 'kind' 
         topicsDone: topics.length - left.length,
         topicsTotal: topics.length,
         topicsLeft: left.map((p) => p.topic.title),
-        hoursBehind: Math.max(0, Math.round(hoursLeft - grades.remainingHours)),
       }
     }),
   }
@@ -154,7 +188,6 @@ export function summaryLine(s: CourseSummary, ended: boolean): string {
   if (s.topicsTotal) {
     let program = `${s.topicsDone} argomenti svolti su ${s.topicsTotal}`
     if (ended && s.topicsLeft.length) program += ` (non svolti: ${s.topicsLeft.join(', ')})`
-    else if (!ended && s.hoursBehind > 0) program += `, ${s.hoursBehind} ore in ritardo`
     parts.push(program)
   }
   const civics = s.grades.civics

@@ -59,8 +59,9 @@ export function todos(data: ProfclickData, today: ISODate, until: ISODate): Todo
       if (due ? due <= until : !item.done) result.push({ id: item.id, due, done: item.done, source: { kind: 'prep', course, item } })
     }
   }
-  for (const meeting of sortedMeetings(data).filter((m) => m.date >= today && m.date <= until)) {
-    for (const item of meeting.prep.filter((p) => p.text.trim())) {
+  // Le cose da fare dopo una riunione (il verbale) restano finché non sono fatte, anche passata la riunione.
+  for (const meeting of sortedMeetings(data).filter((m) => m.date <= until)) {
+    for (const item of meeting.prep.filter((p) => p.text.trim() && (meeting.date >= today || (p.after && !p.done)))) {
       result.push({ id: item.id, due: meeting.date, done: item.done, source: { kind: 'meeting', meeting, item } })
     }
   }

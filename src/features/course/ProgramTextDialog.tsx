@@ -37,7 +37,7 @@ function ProgramTextForm({ input, initialKind, onClose }: { input: ProgramTextIn
         <DialogDescription>
           {kind === 'svolto'
             ? 'Gli argomenti fatti, con i sotto-punti; quelli iniziati sono segnati come svolti in parte.'
-            : 'Tutti gli argomenti previsti, con le ore stimate e i sotto-punti.'}{' '}
+            : 'Tutti gli argomenti previsti, con i sotto-punti.'}{' '}
           Si incolla nel modello della scuola.
         </DialogDescription>
       </DialogHeader>

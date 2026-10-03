@@ -4,8 +4,8 @@ import { ActivityLine, CourseName, ProgressBar } from '@/components/bits'
 import { DoneIcon, MeetingIcon } from '@/components/icons'
 import { PencilUnderline } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
-import { sortedCourses } from '@/core/calendar'
-import { addDays, formatDay, formatShort, type ISODate, startOfWeek, today, weekday } from '@/core/dates'
+import { sortedCourses, weekToShow } from '@/core/calendar'
+import { addDays, formatDay, formatShort, type ISODate, startOfWeek, today } from '@/core/dates'
 import { meetingLabel } from '@/core/model'
 import { setTodosDone, type Todo, todoCourse, todos, toggleTodo } from '@/core/todo'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
@@ -31,8 +31,8 @@ export default function TodoPage() {
   const [meetingOpen, setMeetingOpen] = useState<string | null>(null)
   const { hidden, toggle, showAll } = useHiddenCourses()
   const courses = sortedCourses(data)
-  // Come nella settimana: la domenica si guarda già alla settimana che arriva.
-  const monday = startOfWeek(weekday(now) === 7 ? addDays(now, 1) : now)
+  // Come nella settimana: finita la scuola della settimana si guarda già a quella che arriva.
+  const monday = weekToShow(data, now)
   const until = addDays(monday, weeks * 7 - 1)
   const list = todos(data, now, until).filter((t) => !hidden.has(todoCourse(t)?.id ?? ''))
   const yearEnded = !data.year || until >= data.year.end

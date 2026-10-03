@@ -2,7 +2,7 @@
 // scorso). Capisce tre abitudini diffuse, anche mescolate:
 //
 // - elenco di argomenti: una riga per argomento, le righe rientrate (o con il trattino sotto
-//   una riga senza segni) diventano sotto-punti, le ore in fondo si leggono: "(10h)", "- 8 ore";
+//   una riga senza segni) diventano sotto-punti, le ore in fondo si tolgono dal titolo ("(10h)", "- 8 ore"): 0 ore vuol dire solo valutazione;
 // - elenco dei voti: "Sistemi di numerazione (scritto)", "Flipped classroom (orale, 30%)",
 //   con 1️⃣ 2️⃣ per il periodo e ✳️ per i voti minori; righe con lo stesso titolo nello stesso
 //   periodo diventano un solo argomento con più valutazioni;

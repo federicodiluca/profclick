@@ -31,21 +31,22 @@ come app (PWA). Le decisioni di progetto sono in [docs/decisions](docs/decisions
 - **Valutazioni previste** per argomento, con il loro peso; la proposta le mette in
   calendario, le prove pratiche nelle ore con l'ITP. Argomenti e valutazioni già svolti si spuntano
   con un tocco, senza ricostruire le lezioni passate.
-- **Da preparare**: slide, esercizi, laboratori, legati all'argomento; la settimana mostra
+- **Da fare**: slide, esercizi, laboratori, legati all'argomento, con il numero sul tab di
   quello che serve a breve.
 - **Riunioni**: consigli di classe, scrutini, GLO, collegi, dipartimenti e corsi, con le cose da
-  preparare già proposte per tipo (e quelle in più per il coordinatore). Compaiono nella settimana
-  e nel Da preparare; per consigli e scrutini c'è il riepilogo della classe ricavato dai dati (voti,
+  preparare già proposte per tipo (e quelle in più per il coordinatore), e quelle da fare dopo,
+  come il verbale per chi lo scrive, che restano finché non sono fatte. Compaiono nella settimana
+  e nel Da fare; per consigli e scrutini c'è il riepilogo della classe ricavato dai dati (voti,
   argomenti svolti, educazione civica), da copiare nel verbale.
 - **Calendario**: "Aggiungi a Google Calendar" per ogni verifica e riunione, o un file .ics con tutte.
 - **Per il registro**: gli argomenti di una lezione, o di tutta la settimana fino a oggi, come testo
   da incollare nel registro elettronico, per giorno o per classe.
 - **Orario**: la griglia con tutte le classi, da tenere sul telefono o stampare (anche in PDF).
-- **Proposta di piano** per periodo: argomenti e valutazioni sulle lezioni vuote, da applicare
-  con un tocco.
+- **Proposta di piano** a settimane: scegli gli argomenti e su quante settimane, e si
+  distribuiscono con le loro valutazioni sulle lezioni vuote, da applicare con un tocco.
 - **Settimana**: cosa fare in ogni classe, in ordine di ora, con la spunta di fatto.
-- **Riepilogo** per periodo: a che punto è ogni classe con voti, programma ed educazione civica
-  a barre, cosa manca, e le note per lo scrutinio.
+- **Riepilogo** per periodo: le settimane di scuola che restano e, per ogni classe, le lezioni
+  rimaste, i prossimi voti da dare, quanto resta da pianificare e le note per lo scrutinio.
 - **Nessun server**: i dati stanno sul dispositivo e, se colleghi Google, in un file sul tuo
   Drive. Le modifiche fatte da più dispositivi si uniscono da sole. Nessun dato degli studenti.
   Dettagli nell'[informativa sulla privacy](https://profclick.federicodiluca.com/privacy/).

@@ -2,15 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
 import { formatHours } from '@/lib/ui'
-import { CalendarAddIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
+import { CalendarAddIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, RegisterIcon } from '@/components/icons'
 import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
 import { setDone } from '@/core/actions'
-import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses } from '@/core/calendar'
-import { addDays, formatLong, formatRange, type ISODate, startOfWeek, today, weekday } from '@/core/dates'
+import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses, weekToShow } from '@/core/calendar'
+import { addDays, formatLong, formatRange, type ISODate, today, weekday } from '@/core/dates'
 import { meetingsOn } from '@/core/meetings'
 import { lessonRegisterText } from '@/core/registerText'
-import { todoCourse, todos } from '@/core/todo'
 import { CourseDialog } from '@/features/courses/CourseDialog'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { AddLessonDialog } from '@/features/lesson/LessonTime'
@@ -26,8 +25,8 @@ import { RegisterDialog } from './RegisterDialog'
 export default function WeekPage() {
   const { data, apply } = useData()
   const now = today()
-  // La domenica si guarda già alla settimana che arriva.
-  const [monday, setMonday] = useState(() => startOfWeek(weekday(now) === 7 ? addDays(now, 1) : now))
+  // Finita la scuola della settimana (il sabato, se non c'è lezione) si guarda già a quella che arriva.
+  const [monday, setMonday] = useState(() => weekToShow(data, now))
   const [open, setOpen] = useState<{ courseId: string; date: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [meetingOpen, setMeetingOpen] = useState<string | null>(null)
@@ -36,7 +35,7 @@ export default function WeekPage() {
   const courses = sortedCourses(data)
   const { hidden, toggle, showAll } = useHiddenCourses()
   const shown = (slot: LessonSlot) => !hidden.has(slot.courseId)
-  const thisWeek = monday === startOfWeek(weekday(now) === 7 ? addDays(now, 1) : now)
+  const thisWeek = monday === weekToShow(data, now)
 
   const days = Array.from({ length: 6 }, (_, i) => addDays(monday, i)).map((date) => {
     const all = slotsOn(data, date)
@@ -98,7 +97,7 @@ export default function WeekPage() {
           <Button variant="outline" size="icon" aria-label="Settimana precedente" onClick={() => setMonday(addDays(monday, -7))}>
             <ChevronLeftIcon />
           </Button>
-          <Button variant="outline" onClick={() => setMonday(startOfWeek(weekday(now) === 7 ? addDays(now, 1) : now))} disabled={thisWeek}>
+          <Button variant="outline" onClick={() => setMonday(weekToShow(data, now))} disabled={thisWeek}>
             Oggi
           </Button>
           <Button variant="outline" size="icon" aria-label="Settimana successiva" onClick={() => setMonday(addDays(monday, 7))}>
@@ -124,7 +123,6 @@ export default function WeekPage() {
         />
       )}
 
-      {thisWeek && <PrepLink monday={monday} hidden={hidden} />}
 
       {floating.length > 0 && (
         <section className="space-y-2">
@@ -232,25 +230,6 @@ function PlanStatus({ missing, thisWeek, onPlan }: { missing: number; thisWeek: 
         Pianifica <ChevronRightIcon className="size-4" />
       </span>
     </button>
-  )
-}
-
-/** Quanto manca da preparare per la settimana: la lista vera sta nella pagina Da fare. */
-function PrepLink({ monday, hidden }: { monday: ISODate; hidden: Set<string> }) {
-  const { data } = useData()
-  const list = todos(data, today(), addDays(monday, 6)).filter((t) => t.due && !hidden.has(todoCourse(t)?.id ?? ''))
-  if (list.length === 0) return null
-  const open = list.filter((t) => !t.done).length
-  return (
-    <Link to="/da-fare" className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3 text-sm shadow-xs transition-colors hover:bg-muted/40">
-      <span className="flex min-w-0 items-center gap-2 font-medium">
-        <PrepIcon className="size-5 shrink-0 text-warn" />
-        {open === 0 ? 'Tutto pronto per questa settimana' : open === 1 ? 'Una cosa da preparare per questa settimana' : `${open} cose da preparare per questa settimana`}
-      </span>
-      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-        {list.length - open} di {list.length} pronte <ChevronRightIcon className="size-4" />
-      </span>
-    </Link>
   )
 }
 

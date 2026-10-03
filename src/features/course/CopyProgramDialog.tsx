@@ -3,7 +3,6 @@ import { copyProgram } from '@/core/actions'
 import { type ProgramSource, programSources } from '@/core/archive'
 import type { Course } from '@/core/model'
 import { newId } from '@/lib/id'
-import { formatHours } from '@/lib/ui'
 import { useData } from '@/state/data'
 
 /** Il programma di un'altra classe, di quest'anno o di un anno passato, in un tocco. */
@@ -23,7 +22,7 @@ export function CopyProgramDialog({ course, open, onClose }: { course: Course; o
         <DialogHeader>
           <DialogTitle>Copia il programma</DialogTitle>
           <DialogDescription>
-            Argomenti, ore, sotto-punti e valutazioni previste, tutti da fare, nello stesso periodo. Poi li ritocchi per {course.className}.
+            Argomenti, sotto-punti e valutazioni previste, tutti da fare, nello stesso periodo. Poi li ritocchi per {course.className}.
           </DialogDescription>
         </DialogHeader>
         {groups.map((group) => (
@@ -37,7 +36,7 @@ export function CopyProgramDialog({ course, open, onClose }: { course: Course; o
                     <button type="button" onClick={() => copy(s)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-muted/50">
                       <span className="font-medium">{s.label}</span>
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {s.topics.length} {s.topics.length === 1 ? 'argomento' : 'argomenti'} · {formatHours(s.topics.reduce((h, t) => h + t.hours, 0))}
+                        {s.topics.length} {s.topics.length === 1 ? 'argomento' : 'argomenti'}
                       </span>
                     </button>
                   </li>

@@ -21,7 +21,7 @@ settimana corrente: chi pianificava due spiegazioni doveva scrivere anche due pr
   Una voce pronta resta in elenco, spuntata, finché la lezione non è fatta. Si spunta anche
   tutta una settimana, o tutto l'elenco, in un tocco, con Annulla.
 - Sul tab, un numero: quante cose servono nei prossimi sette giorni e non sono pronte. Nella
-  settimana, al posto della lista, una riga che porta al tab.
+  settimana non c'è altro: il numero sul tab basta (prima c'era una riga che portava al tab).
 - Il filtro delle classi vale anche qui.
 
 ## Alternative scartate

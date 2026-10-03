@@ -1,14 +1,16 @@
-// La proposta di piano per un periodo (ADR 0006): riempie le lezioni future ancora vuote
-// seguendo il programma. Ogni argomento occupa le sue ore stimate, seguito dalle
-// valutazioni previste per lui; se i voti non bastano, se ne aggiungono altri a intervalli
-// regolari, e così le ore di educazione civica. È solo una proposta: il docente la vede
-// tratteggiata e decide se applicarla.
+// La proposta di piano (ADR 0006, rivista in ADR 0020): si scelgono gli argomenti e su quante
+// settimane distribuirli, e la proposta riempie le lezioni ancora vuote di quelle settimane.
+// Ogni argomento prende un numero di lezioni in proporzione ai suoi sotto-punti, almeno una,
+// seguito dalle valutazioni previste per lui. Si ragiona per lezioni, non per ore. È solo una
+// proposta: il docente la vede tratteggiata e decide se applicarla.
 
 import { isAvailable, type LessonSlot, periodSlots } from './calendar'
-import type { ISODate } from './dates'
-import { periodGrades } from './grading'
+import { addDays, type ISODate, startOfWeek } from './dates'
+import { placedAssessments } from './grading'
+
+export { assessmentTypes } from './grading'
 import { type Activity, type Course, type GradeType, isMinor, type Period, type PlannedAssessment, type ProfclickData, type Topic } from './model'
-import { courseTopics, topicProgress, topicsSinceLastAssessment } from './progress'
+import { courseTopics, topicsSinceLastAssessment } from './progress'
 
 export interface ProposedLesson {
   date: ISODate
@@ -18,49 +20,37 @@ export interface ProposedLesson {
 
 export interface Proposal {
   lessons: ProposedLesson[]
-  /** Ore di programma che non ci stanno nel periodo. */
-  overflowHours: number
-  /** Valutazioni previste nel programma che non ci stanno. */
+  /** Le settimane coperte: dal lunedì della prima alla domenica dell'ultima. */
+  from: ISODate
+  to: ISODate
+  /** Argomenti scelti che non ci stanno nelle lezioni libere. */
+  overflowTopics: Topic[]
+  /** Valutazioni previste che non ci stanno. */
   overflowAssessments: number
-  /** Lezioni rimaste libere: margine per ripassi e recuperi. */
+  /** Lezioni rimaste libere nelle settimane scelte. */
   spareLessons: number
   assessments: number
 }
 
-/** Quota del periodo dopo cui non si mettono valutazioni aggiunte: l'ultimo tratto serve ai recuperi. */
-const LAST_ASSESSMENT_AT = 0.92
-
-/**
- * I tipi di valutazione da aggiungere: prima quelli richiesti e mancanti, poi a rotazione,
- * scegliendo il tipo finora meno usato.
- */
-export function assessmentTypes(course: Course, existing: GradeType[], count: number): GradeType[] {
-  const used = { scritto: 0, teorico: 0, pratico: 0 }
-  for (const t of existing) used[t]++
-  const result: GradeType[] = []
-  for (const t of course.rules.required) {
-    if (result.length < count && used[t] === 0) {
-      result.push(t)
-      used[t]++
-    }
-  }
-  const rotation = course.rules.required.length > 0 ? course.rules.required : (['scritto', 'teorico', 'pratico'] as GradeType[])
-  while (result.length < count) {
-    const next = [...rotation].sort((a, b) => used[a] - used[b])[0]
-    result.push(next)
-    used[next]++
-  }
-  return result
+/** Le lezioni future ancora vuote di un periodo, dove la proposta può mettere qualcosa. */
+export function freeSlots(data: ProfclickData, course: Course, period: Period, today: ISODate): LessonSlot[] {
+  return periodSlots(data, course, period).filter((s) => s.date >= today && isAvailable(s) && !s.lesson?.done && !s.lesson?.activities.length)
 }
 
-type QueueItem = { kind: 'teach'; topic: Topic; left: number } | { kind: 'assess'; topic: Topic; planned: PlannedAssessment }
-type Extra = { at: number } & ({ kind: 'verifica'; type: GradeType } | { kind: 'civica' })
-
-/** Posizioni equidistanti, in ore dall'inizio, lungo il tratto occupato dal programma. */
-function marks(totalHours: number, programHours: number, count: number, lessonHours: number): number[] {
-  const span = Math.min(totalHours, (programHours + count * lessonHours) / LAST_ASSESSMENT_AT)
-  const usable = span * LAST_ASSESSMENT_AT
-  return Array.from({ length: count }, (_, i) => (usable * (i + 1)) / count)
+/** Lezioni per argomento: almeno una a testa, il resto in proporzione ai sotto-punti. */
+export function shareLessons(topics: Topic[], lessons: number): number[] {
+  if (topics.length === 0) return []
+  const shares = topics.map(() => 1)
+  const weights = topics.map((t) => Math.max(1, t.points.length))
+  const total = weights.reduce((a, b) => a + b, 0)
+  const rest = Math.max(0, lessons - topics.length)
+  const exact = weights.map((w) => (rest * w) / total)
+  exact.forEach((x, i) => (shares[i] += Math.floor(x)))
+  // I resti vanno ai più grandi, a parità al primo.
+  let left = lessons - shares.reduce((a, b) => a + b, 0)
+  const order = exact.map((x, i) => [x - Math.floor(x), i]).sort((a, b) => b[0] - a[0] || a[1] - b[1])
+  for (const [, i] of order) if (left-- > 0) shares[i]++
+  return shares
 }
 
 let seq = 0
@@ -73,91 +63,85 @@ function betterLater(type: GradeType, slot: LessonSlot, following: LessonSlot[])
   return false
 }
 
-export function proposePlan(data: ProfclickData, course: Course, period: Period, today: ISODate): Proposal {
-  const free: LessonSlot[] = periodSlots(data, course, period).filter(
-    (s) => s.date >= today && isAvailable(s) && !s.lesson?.done && !s.lesson?.activities.length,
-  )
-  const grades = periodGrades(data, course, period, today)
-  const progress = new Map(topicProgress(data, course).map((p) => [p.topic.id, p]))
-  const unplaced = new Set(grades.unplaced.map((u) => u.planned.id))
+type Item = { kind: 'teach'; topic: Topic } | { kind: 'assess'; topic: Topic; planned: PlannedAssessment }
 
-  // Il programma del periodo in sequenza: ore di spiegazione, poi le valutazioni previste.
-  const queue: QueueItem[] = []
-  for (const topic of courseTopics(data, course.id)) {
-    if (topic.periodId !== period.id && topic.periodId !== null) continue
-    // Un argomento concluso non si spiega più, ma le sue valutazioni non fatte restano da mettere.
-    const left = topic.completed ? 0 : Math.max(0, topic.hours - (progress.get(topic.id)?.plannedHours ?? 0))
-    if (left > 0) queue.push({ kind: 'teach', topic, left })
-    for (const planned of topic.assessments) if (unplaced.has(planned.id)) queue.push({ kind: 'assess', topic, planned })
-  }
-  const explicit = queue.flatMap((q) => (q.kind === 'assess' && !isMinor(q.planned) ? [q.planned.type] : []))
+/**
+ * Distribuisce gli argomenti scelti, nell'ordine del programma, sulle lezioni vuote delle
+ * prossime settimane del periodo, a partire da quella con la prima lezione libera.
+ */
+export function proposeWeeks(data: ProfclickData, course: Course, period: Period, topicIds: string[], weeks: number, today: ISODate): Proposal {
+  const all = freeSlots(data, course, period, today)
+  const from = startOfWeek(all[0]?.date ?? (today > period.start ? today : period.start))
+  const to = addDays(from, weeks * 7 - 1)
+  const free = all.filter((s) => s.date <= to)
 
-  // Voti aggiunti: quelli che mancano al minimo anche contando le valutazioni previste.
-  const existing = [...grades.full.map((g) => g.type), ...explicit]
-  const missingTypes = course.rules.required.filter((t) => !existing.includes(t)).length
-  const autoCount = Math.min(Math.max(grades.target - existing.length, missingTypes), free.length)
-  const autoTypes = assessmentTypes(course, existing, Math.max(0, autoCount))
+  const placed = placedAssessments(data, course.id)
+  const chosen = courseTopics(data, course.id).filter((t) => topicIds.includes(t.id))
+  const pending = (t: Topic) => t.assessments.filter((a) => !a.done && !placed.has(a.id))
+  const need = (t: Topic) => (t.assessmentOnly || t.completed ? 0 : 1) + pending(t).length
 
-  const totalHours = free.reduce((sum, s) => sum + s.hours, 0)
-  const lessonHours = free.length ? totalHours / free.length : 0
-  const programHours = queue.reduce((sum, q) => sum + (q.kind === 'teach' ? q.left : lessonHours), 0)
-  const civicLessons = lessonHours ? Math.ceil(Math.max(0, grades.civics.target - grades.civics.planned) / lessonHours - 0.01) : 0
-  const extras: Extra[] = [
-    ...marks(totalHours, programHours, autoTypes.length, lessonHours).map((at, i) => ({ at, kind: 'verifica' as const, type: autoTypes[i] })),
-    // L'educazione civica si sparge a metà dei tratti, per non accavallarsi con le verifiche.
-    ...marks(totalHours, programHours, civicLessons, lessonHours).map((at) => ({ at: at - (programHours / Math.max(civicLessons, 1)) / 2, kind: 'civica' as const })),
-  ].sort((a, b) => a.at - b.at)
+  // Gli argomenti in coda che non ci stanno neanche con una lezione a testa restano fuori.
+  const fitting = [...chosen]
+  const overflowTopics: Topic[] = []
+  while (fitting.length && fitting.reduce((s, t) => s + need(t), 0) > free.length) overflowTopics.unshift(fitting.pop()!)
+
+  const teaching = fitting.filter((t) => !t.assessmentOnly && !t.completed)
+  const assessCount = fitting.reduce((s, t) => s + pending(t).length, 0)
+  const shares = new Map(shareLessons(teaching, free.length - assessCount).map((n, i) => [teaching[i].id, n]))
+  const queue: Item[] = fitting.flatMap((topic) => [
+    ...Array.from({ length: shares.get(topic.id) ?? 0 }, () => ({ kind: 'teach' as const, topic })),
+    ...pending(topic).map((planned) => ({ kind: 'assess' as const, topic, planned })),
+  ])
 
   const lessons: ProposedLesson[] = []
   const taughtSince: string[] = topicsSinceLastAssessment(data, course, free[0]?.date ?? today)
-  let elapsed = 0
-  let placedAssessments = 0
+  let assessments = 0
   const place = (slot: LessonSlot, activity: Omit<Activity, 'id'>) => lessons.push({ date: slot.date, hours: slot.hours, activity: { id: proposalId(), ...activity } })
 
-  for (let i = 0; i < free.length; i++) {
+  for (let i = 0; i < free.length && queue.length; i++) {
     const slot = free[i]
-    const following = free.slice(i + 1)
-    const extra = extras[0]
-    const due = extra && elapsed + slot.hours >= extra.at
-    const mustPlace = extra && free.length - i <= extras.length
-    const item = queue[0]
-
-    if (extra && ((due && !(extra.kind === 'verifica' && betterLater(extra.type, slot, following))) || mustPlace)) {
-      extras.shift()
-      if (extra.kind === 'civica') {
-        place(slot, { kind: 'civica', topicIds: [], text: '' })
-      } else {
-        place(slot, { kind: 'verifica', topicIds: [...taughtSince], text: '', assessment: { type: extra.type, weight: 100, continues: false } })
-        taughtSince.length = 0
-        placedAssessments++
+    let item = queue[0]
+    if (item.kind === 'assess' && betterLater(item.planned.type, slot, free.slice(i + 1))) {
+      // Si aspetta il laboratorio: prima un'altra valutazione che segue subito, se va bene qui,
+      // altrimenti un ripasso, tolto a una spiegazione che viene dopo.
+      const swap = queue[1]
+      if (swap?.kind === 'assess' && !betterLater(swap.planned.type, slot, free.slice(i + 1))) {
+        queue.splice(1, 1)
+        queue.unshift(swap)
+        item = swap
       }
-    } else if (item?.kind === 'assess') {
-      if (betterLater(item.planned.type, slot, following)) {
-        // Si aspetta il laboratorio facendo un ripasso di quello che si verificherà.
-        place(slot, { kind: 'ripasso', topicIds: [item.topic.id], text: '' })
-      } else {
-        queue.shift()
-        const topicIds = item.topic.hours > 0 ? [item.topic.id] : [...taughtSince]
-        const { type, weight, text, id } = item.planned
-        place(slot, { kind: 'verifica', topicIds, text, assessment: { type, weight, continues: false, plannedId: id } })
-        if (!isMinor(item.planned)) taughtSince.length = 0
-        placedAssessments++
-      }
-    } else if (item?.kind === 'teach') {
+    }
+    if (item.kind === 'assess' && betterLater(item.planned.type, slot, free.slice(i + 1))) {
+      place(slot, { kind: 'ripasso', topicIds: [item.topic.id], text: '' })
+      const later = queue.findLastIndex((q) => q.kind === 'teach' && queue.filter((x) => x.kind === 'teach' && x.topic === q.topic).length > 1)
+      if (later > 0) queue.splice(later, 1)
+      continue
+    }
+    queue.shift()
+    if (item.kind === 'teach') {
       place(slot, { kind: 'spiegazione', topicIds: [item.topic.id], text: '' })
       if (!taughtSince.includes(item.topic.id)) taughtSince.push(item.topic.id)
-      item.left -= slot.hours
-      if (item.left <= 0.01) queue.shift()
+    } else {
+      const topicIds = item.topic.assessmentOnly ? [...taughtSince] : [item.topic.id]
+      const { type, weight, text, id } = item.planned
+      place(slot, { kind: 'verifica', topicIds, text, assessment: { type, weight, continues: false, plannedId: id } })
+      if (!isMinor(item.planned)) taughtSince.length = 0
+      assessments++
     }
-    elapsed += slot.hours
   }
 
-  const planned = new Set(lessons.map((l) => l.date))
+  // Gli argomenti rimasti senza neanche una lezione, perché le valutazioni hanno aspettato il laboratorio.
+  for (const t of teaching) {
+    if (!lessons.some((l) => l.activity.kind === 'spiegazione' && l.activity.topicIds.includes(t.id))) overflowTopics.push(t)
+  }
+
   return {
     lessons,
-    overflowHours: queue.reduce((sum, q) => sum + (q.kind === 'teach' ? q.left : 0), 0),
-    overflowAssessments: queue.filter((q) => q.kind === 'assess').length,
-    spareLessons: free.filter((s) => !planned.has(s.date)).length,
-    assessments: placedAssessments,
+    from: from > period.start ? from : period.start,
+    to: to < period.end ? to : period.end,
+    overflowTopics: overflowTopics.sort((a, b) => a.order - b.order),
+    overflowAssessments: queue.filter((q) => q.kind === 'assess').length + overflowTopics.reduce((s, t) => s + pending(t).length, 0),
+    spareLessons: free.length - lessons.length,
+    assessments,
   }
 }

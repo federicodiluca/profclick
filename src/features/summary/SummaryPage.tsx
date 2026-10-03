@@ -1,21 +1,27 @@
 import { createElement, useState } from 'react'
 import { Link } from 'wouter'
 import { CourseName, Segmented } from '@/components/bits'
+import { NoteIcon } from '@/components/icons'
 import { GRADE_ICONS } from '@/lib/activityIcons'
 import { PencilTick, PencilUnderline, PencilWave } from '@/components/pencil'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { saveCourse } from '@/core/actions'
-import { currentPeriod, isAvailable, periodSlots, sortedCourses } from '@/core/calendar'
-import { daysBetween, formatRange, today } from '@/core/dates'
-import { type PeriodGrades, periodGrades } from '@/core/grading'
+import { currentPeriod, periodSlots, schoolWeeks, sortedCourses } from '@/core/calendar'
+import { formatRange, formatShort, startOfWeek, today } from '@/core/dates'
+import { type NextGrade, nextGrades, type PeriodGrades, periodGrades, programAssessments } from '@/core/grading'
 import { type Course, GRADE_LABELS, isMinor, type Period } from '@/core/model'
-import { topicProgress } from '@/core/progress'
-import { formatHours, gradesLine } from '@/lib/ui'
+import { freeSlots } from '@/core/proposal'
+import { formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
 
-/** A che punto è ogni classe nel periodo: voti, programma, educazione civica, e due righe di note. */
+/**
+ * A che punto è ogni classe nel periodo (ADR 0020): quante lezioni restano, i prossimi voti
+ * da dare e quanto c'è ancora da pianificare. Una riga per classe, le note in un popup.
+ */
 export default function SummaryPage() {
   const { data } = useData()
   const now = today()
@@ -42,13 +48,13 @@ export default function SummaryPage() {
         )}
       </div>
 
-      {period && <PeriodTime period={period} now={now} />}
+      {period && <PeriodWeeks period={period} now={now} />}
 
       {courses.length === 0 ? (
         <p className="text-muted-foreground">Ancora nessuna classe: il riepilogo si riempie quando ne aggiungi una.</p>
       ) : (
         period && (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-3">
             {courses.map((course) => (
               <CourseSummary key={course.id} course={course} period={period} />
             ))}
@@ -59,19 +65,30 @@ export default function SummaryPage() {
   )
 }
 
-/** Quanto del periodo è passato: il metro con cui leggere le barre delle classi. */
-function PeriodTime({ period, now }: { period: Period; now: string }) {
-  const total = daysBetween(period.start, period.end) + 1
-  const passed = Math.min(total, Math.max(0, daysBetween(period.start, now) + 1))
-  const left = total - passed
-  const text = passed === 0 ? 'Non è ancora iniziato' : left === 0 ? 'Concluso' : `Passato il ${Math.round((passed / total) * 100)}%, mancano ${left} giorni`
+/** Quante settimane di scuola sono passate: le vacanze non contano, come quando si pianifica. */
+function PeriodWeeks({ period, now }: { period: Period; now: string }) {
+  const { data } = useData()
+  const weeks = schoolWeeks(data.year!, period)
+  const passed = weeks.filter((w) => w < startOfWeek(now)).length
+  const left = weeks.length - passed
+  const text =
+    now < period.start
+      ? `Non è ancora iniziato: ${weeks.length} settimane di scuola`
+      : now > period.end
+        ? 'Concluso'
+        : left === 1
+          ? "Resta quest'ultima settimana di scuola"
+          : `Restano ${left} settimane di scuola su ${weeks.length}`
+  const pct = weeks.length ? Math.min(100, (passed / weeks.length) * 100) : 0
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs text-muted-foreground">
         <span>{period.name}</span>
         <span>{text}</span>
       </div>
-      <Bar done={passed} max={total} tone="bg-pencil-blue" />
+      <div className="relative h-2 rounded-full bg-muted" role="presentation">
+        <div className="absolute inset-y-0 left-0 rounded-full bg-pencil-blue transition-all" style={{ width: `${now > period.end ? 100 : pct}%` }} />
+      </div>
     </div>
   )
 }
@@ -83,30 +100,17 @@ const STATUS: Record<PeriodGrades['status'], { label: string; tone: string }> = 
 }
 
 function CourseSummary({ course, period }: { course: Course; period: Period }) {
-  const { data, apply } = useData()
+  const { data } = useData()
   const now = today()
+  const [notesOpen, setNotesOpen] = useState(false)
   const grades = periodGrades(data, course, period, now)
   const status = STATUS[grades.status]
-
-  // Il programma del periodo in ore: fatte, in calendario, previste.
-  const program = { total: 0, done: 0, planned: 0 }
-  for (const p of topicProgress(data, course).filter((p) => p.topic.periodId === period.id)) {
-    const hours = p.topic.hours
-    const fatto = p.status === 'fatto'
-    program.total += hours
-    program.done += fatto ? hours : Math.min(p.doneHours, hours)
-    program.planned += fatto ? hours : Math.min(Math.max(p.plannedHours, p.doneHours), hours)
-  }
-  // Dove si dovrebbe essere: la quota di lezioni del periodo già passate.
-  const slots = periodSlots(data, course, period).filter(isAvailable)
-  const pace = slots.length ? slots.filter((s) => s.date < now).length / slots.length : 0
-
-  const unplacedFull = grades.unplaced.filter((u) => !isMinor(u.planned)).length
-  const note = course.periodNotes[period.id] ?? ''
-  const noteField = useAutosave((value) => value !== note && apply(saveCourse({ ...course, periodNotes: { ...course.periodNotes, [period.id]: value } })))
+  const next = nextGrades(data, course, grades)
+  const program = programAssessments(data, course, period, grades)
+  const note = (course.periodNotes[period.id] ?? '').trim()
 
   return (
-    <section className="space-y-4 rounded-xl border bg-card p-4 shadow-xs">
+    <section className="space-y-3 rounded-xl border bg-card p-4 shadow-xs">
       <div className="flex items-center justify-between gap-2">
         <Link to={`/classi/${course.id}`} className="min-w-0 font-semibold hover:underline">
           <CourseName course={course} />
@@ -118,90 +122,98 @@ function CourseSummary({ course, period }: { course: Course; period: Period }) {
         </span>
       </div>
 
-      <div className="space-y-3">
-        <Meter label="Voti" detail={gradesLine(grades)} done={grades.done} planned={grades.full.length} max={grades.target} />
-        {program.total > 0 && (
-          <Meter
-            label="Programma"
-            detail={`${formatHours(program.done)} svolte, ${formatHours(program.planned)} in calendario su ${formatHours(program.total)}`}
-            done={program.done}
-            planned={program.planned}
-            max={program.total}
-            pace={pace}
-          />
-        )}
-        {grades.civics.target > 0 && (
-          <Meter
-            label="Educazione civica"
-            detail={`${formatHours(grades.civics.done)} svolte, ${formatHours(grades.civics.planned)} in calendario su ${formatHours(grades.civics.target)}`}
-            done={grades.civics.done}
-            planned={grades.civics.planned}
-            max={grades.civics.target}
-          />
-        )}
-      </div>
+      <p className="text-sm text-muted-foreground">
+        {grades.remainingLessons === 0 ? 'Nessuna lezione rimasta' : grades.remainingLessons === 1 ? 'Resta una lezione' : `Restano ${grades.remainingLessons} lezioni`}
+        {grades.status !== 'ok' && <ToPlan course={course} period={period} />}
+      </p>
 
-      {grades.status !== 'ok' && (
-        <div className="space-y-1.5 text-sm">
-          {grades.missingTypes.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {grades.missingTypes.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1.5 rounded-full border border-pencil-red/40 px-2 py-0.5 text-xs font-medium text-pencil-red">
-                  {createElement(GRADE_ICONS[t], { className: 'size-3.5' })}
-                  Manca {GRADE_LABELS[t].toLowerCase()}
-                </span>
-              ))}
-            </div>
-          )}
-          <p className="text-muted-foreground">
-            {grades.missing > 0 && `${grades.missing === 1 ? 'Un voto' : `${grades.missing} voti`} da mettere in calendario`}
-            {grades.missing > 0 && unplacedFull > 0 && ` (${unplacedFull} già previsti nel programma)`}
-            {grades.missing > 0 && ', '}
-            {grades.freeLessons === 1 ? 'una lezione ancora libera' : `${grades.freeLessons} lezioni ancora libere`}.{' '}
-            <Link to={`/classi/${course.id}`} className="font-medium text-primary hover:underline">
-              Apri il piano
-            </Link>
-          </p>
+      {next.length > 0 ? (
+        <div className="space-y-1.5">
+          <h3 className="text-xs font-medium text-muted-foreground">{next.length === 1 ? 'Prossimo voto' : 'Prossimi voti'}</h3>
+          <ul className="space-y-1">
+            {next.map((g, i) => (
+              <NextGradeLine key={i} grade={g} />
+            ))}
+          </ul>
         </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Nessun altro voto da dare in questo periodo.</p>
       )}
 
-      <Textarea
-        key={`${course.id}${period.id}`}
-        defaultValue={note}
-        rows={2}
-        placeholder="Note per lo scrutinio: recuperi, accordi, chi tenere d'occhio…"
-        aria-label={`Note di ${period.name} per ${course.className}`}
-        className="min-h-0 text-sm"
-        {...noteField}
-      />
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
+        <div className="space-y-0.5">
+          {program.total > 0 && (
+            <p>
+              Dal programma {program.total === 1 ? 'una valutazione' : `${program.total} valutazioni`}:{' '}
+              {program.unplaced === 0 ? (program.total === 1 ? 'già messa' : 'tutte già messe') : `${program.total - program.unplaced} già messe, ${program.unplaced} da mettere`}
+            </p>
+          )}
+          <p>
+            Voti {grades.done} {grades.done === 1 ? 'fatto' : 'fatti'} su {grades.target}
+            {grades.civics.target > 0 && ` · Ed. civica ${formatHours(grades.civics.planned)} in calendario su ${formatHours(grades.civics.target)}`}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setNotesOpen(true)} className="max-w-full" aria-label={`Note di ${period.name} per ${course.className}`}>
+          <NoteIcon />
+          {note ? <span className="max-w-48 truncate">{note.split('\n')[0]}</span> : 'Note'}
+        </Button>
+      </div>
+
+      <NotesDialog course={course} period={period} open={notesOpen} onClose={() => setNotesOpen(false)} />
     </section>
   )
 }
 
-/** Una barra con il fatto pieno, il previsto più chiaro e, se c'è, il segno di dove si dovrebbe essere. */
-function Meter({ label, detail, done, planned, max, pace }: { label: string; detail: string; done: number; planned: number; max: number; pace?: number }) {
-  const behind = pace !== undefined && max > 0 && done / max < pace - 0.1
+/** "· pianificato fino al 14/11, ancora 6 settimane da pianificare" */
+function ToPlan({ course, period }: { course: Course; period: Period }) {
+  const { data } = useData()
+  const now = today()
+  const free = freeSlots(data, course, period, now)
+  const weeks = new Set(free.map((s) => startOfWeek(s.date))).size
+  if (weeks === 0) return null
+  // Pianificato di seguito fino a una data: nessuna lezione già piena dopo la prima vuota.
+  const planned = periodSlots(data, course, period).filter((s) => s.date >= now && s.lesson?.activities.length)
+  const lastBefore = planned.filter((s) => s.date < free[0].date).at(-1)
+  const contiguous = !planned.some((s) => s.date > free[0].date)
+  const count = weeks === 1 ? 'una settimana' : `${weeks} settimane`
+  if (contiguous && lastBefore) return <>, pianificato fino al {formatShort(lastBefore.date)}: ancora {count} da pianificare</>
+  if (contiguous) return <>, {count} da pianificare</>
+  return <>, {count} con lezioni ancora vuote</>
+}
+
+function NextGradeLine({ grade }: { grade: NextGrade }) {
+  const label = isMinor(grade) ? `${GRADE_LABELS[grade.type]} ${grade.weight}%` : GRADE_LABELS[grade.type]
+  const about = grade.source === 'minimo' ? 'per arrivare al minimo' : [grade.about, grade.text].filter(Boolean).join(' · ')
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between gap-3 text-xs">
+    <li className="flex items-start gap-2 text-sm">
+      {createElement(GRADE_ICONS[grade.type], { className: 'mt-0.5 size-4 shrink-0 text-muted-foreground' })}
+      <span className="min-w-0 flex-1">
         <span className="font-medium">{label}</span>
-        <span className="text-right text-muted-foreground">{detail}</span>
-      </div>
-      <Bar done={done} planned={planned} max={max} pace={pace} />
-      {behind && <p className="text-xs text-warn">Un po' indietro rispetto alle lezioni già passate.</p>}
-    </div>
+        {about && <span className="text-muted-foreground"> · {about}</span>}
+      </span>
+      <span className={cn('shrink-0 text-xs', grade.date ? 'text-muted-foreground' : 'font-medium text-warn')}>
+        {grade.date ? `in calendario ${formatShort(grade.date)}` : 'da mettere'}
+      </span>
+    </li>
   )
 }
 
-function Bar({ done, planned = 0, max, pace, tone = 'bg-done' }: { done: number; planned?: number; max: number; pace?: number; tone?: string }) {
-  const pct = (v: number) => (max > 0 ? Math.min(100, (v / max) * 100) : 0)
+/** Le note per lo scrutinio, per classe e periodo: si scrivono in un popup per non affollare la lista. */
+function NotesDialog({ course, period, open, onClose }: { course: Course; period: Period; open: boolean; onClose: () => void }) {
+  const { apply } = useData()
+  const note = course.periodNotes[period.id] ?? ''
+  const field = useAutosave((value) => value !== note && apply(saveCourse({ ...course, periodNotes: { ...course.periodNotes, [period.id]: value } })))
   return (
-    <div className="relative h-2 rounded-full bg-muted" role="presentation">
-      <div className={cn('absolute inset-y-0 left-0 rounded-full opacity-35', tone)} style={{ width: `${pct(Math.max(planned, done))}%` }} />
-      <div className={cn('absolute inset-y-0 left-0 rounded-full transition-all', tone)} style={{ width: `${pct(done)}%` }} />
-      {pace !== undefined && pace > 0 && pace < 1 && (
-        <div className="absolute -inset-y-1 w-0.5 rounded-full bg-foreground/50" style={{ left: `${pace * 100}%` }} title="Dove si dovrebbe essere" />
-      )}
-    </div>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            Note · {course.className} · {period.name}
+          </DialogTitle>
+          <DialogDescription>Per lo scrutinio: recuperi, accordi, chi tenere d'occhio. Si salvano da sole.</DialogDescription>
+        </DialogHeader>
+        <Textarea key={`${course.id}${period.id}`} defaultValue={note} rows={8} autoFocus aria-label={`Note di ${period.name} per ${course.className}`} {...field} />
+      </DialogContent>
+    </Dialog>
   )
 }

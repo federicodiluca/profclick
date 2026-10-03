@@ -121,8 +121,8 @@ export interface Topic extends Stamped {
   id: string
   courseId: string
   title: string
-  /** Ore stimate per svolgerlo; 0 per una voce che è solo una valutazione (es. prova parallela). */
-  hours: number
+  /** Una voce che è solo una valutazione (es. prova parallela): niente da spiegare. */
+  assessmentOnly?: boolean
   /** Il periodo in cui va svolto; null = non ancora deciso. */
   periodId: string | null
   /** Sotto-punti, come promemoria: non si pianificano uno per uno. */
@@ -217,11 +217,13 @@ export type MeetingKind = 'cdc' | 'scrutinio' | 'glo' | 'collegio' | 'dipartimen
 
 export const MEETING_KINDS: MeetingKind[] = ['cdc', 'scrutinio', 'glo', 'collegio', 'dipartimento', 'corso', 'altro']
 
-/** Una cosa da preparare per una riunione. */
+/** Una cosa da preparare per una riunione, o da fare dopo (il verbale). */
 export interface MeetingPrep {
   id: string
   text: string
   done: boolean
+  /** Da fare dopo la riunione: resta tra le cose da fare finché non è fatta. */
+  after?: boolean
 }
 
 /** Consiglio di classe, scrutinio, collegio, corso: gli impegni del pomeriggio. */
@@ -237,6 +239,8 @@ export interface Meeting extends Stamped {
   title: string
   /** Coordinatore di quella classe: aggiunge le sue cose da preparare. */
   coordinator: boolean
+  /** Scrive il verbale (segretario, coordinatore, referente): aggiunge il verbale da fare dopo. */
+  minutes?: boolean
   prep: MeetingPrep[]
   notes: string
 }
@@ -322,10 +326,19 @@ function normalizeCourse(c: Loose<Course>): Course {
   }
 }
 
-/** Prima di poter spuntare le valutazioni, un argomento concluso non ne aveva più da fare. */
-function normalizeTopic(t: Loose<Topic>): Topic {
+/**
+ * Prima di poter spuntare le valutazioni, un argomento concluso non ne aveva più da fare.
+ * Le ore stimate non ci sono più (ADR 0020): 0 ore voleva dire solo una valutazione.
+ */
+function normalizeTopic<T extends ArchivedTopic>(t: Loose<T> & { hours?: unknown }): T {
+  const { hours, ...rest } = t
   const assessments = (t.assessments ?? []).map((a) => ({ ...a, done: a.done ?? Boolean(t.completed) }))
-  return { ...(t as Topic), points: t.points ?? [], assessments }
+  const assessmentOnly = t.assessmentOnly || hours === 0
+  return { ...(rest as T), points: t.points ?? [], assessments, ...(assessmentOnly && { assessmentOnly: true }) }
+}
+
+function normalizeArchivedYear(y: Loose<ArchivedYear>): ArchivedYear {
+  return { ...(y as ArchivedYear), courses: (y.courses ?? []).map((c) => ({ ...c, topics: (c.topics ?? []).map((t) => normalizeTopic<ArchivedTopic>(t as Loose<ArchivedTopic>)) })) }
 }
 
 /** Le prime versioni avevano minor: boolean al posto del peso. */
@@ -341,8 +354,13 @@ function normalizeLesson(l: Loose<Lesson>): Lesson {
   }
 }
 
+/** Le voci che prima stavano tra le cose da preparare e si fanno dopo la riunione. */
+const OLD_AFTER = new Set(['Verbale', 'Verbale del GLO', 'Comunicazioni alle famiglie'])
+
 function normalizeMeeting(m: Loose<Meeting>): Meeting {
-  return { ...(m as Meeting), time: m.time ?? '', className: m.className ?? null, title: m.title ?? '', coordinator: Boolean(m.coordinator), prep: m.prep ?? [], notes: m.notes ?? '' }
+  const prep = (m.prep ?? []).map((p) => (p.after === undefined && OLD_AFTER.has(p.text) ? { ...p, after: true } : p))
+  const minutes = m.minutes ?? prep.some((p) => p.text.startsWith('Verbale'))
+  return { ...(m as Meeting), time: m.time ?? '', className: m.className ?? null, title: m.title ?? '', coordinator: Boolean(m.coordinator), minutes, prep, notes: m.notes ?? '' }
 }
 
 function mapValues<T, U>(record: Record<string, T> | undefined, fn: (value: T) => U): Record<string, U> {
@@ -356,10 +374,10 @@ export function normalizeData(raw: unknown): ProfclickData {
     schema: 1,
     year: value.year ?? null,
     courses: mapValues(value.courses as Record<string, Loose<Course>>, normalizeCourse),
-    topics: mapValues(value.topics as Record<string, Loose<Topic>>, normalizeTopic),
+    topics: mapValues(value.topics as Record<string, Loose<Topic>>, (t) => normalizeTopic<Topic>(t)),
     lessons: mapValues(value.lessons as Record<string, Loose<Lesson>>, normalizeLesson),
     meetings: mapValues(value.meetings as Record<string, Loose<Meeting>>, normalizeMeeting),
-    archive: value.archive ?? {},
+    archive: mapValues(value.archive as Record<string, Loose<ArchivedYear>>, normalizeArchivedYear),
     deleted: value.deleted ?? {},
   }
 }

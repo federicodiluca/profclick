@@ -2,17 +2,13 @@ import { type CSSProperties, useState } from 'react'
 import { Link } from 'wouter'
 import { ChevronLeftIcon, ChevronRightIcon, PrintIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { addDays, formatRange, type ISODate, startOfWeek, today, weekday, weekdayName } from '@/core/dates'
+import { addDays, formatRange, today, weekdayName } from '@/core/dates'
+import { weekToShow } from '@/core/calendar'
 import { cellKey, type TimetableEntry, timetable } from '@/core/timetable'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { courseColor, formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
-
-/** Il lunedì della settimana da mostrare: la domenica si guarda già a quella che arriva, come nella Settimana. */
-function currentMonday(now: ISODate): ISODate {
-  return startOfWeek(weekday(now) === 7 ? addDays(now, 1) : now)
-}
 
 /**
  * L'orario di tutte le classi in una settimana, in una griglia, da stampare (anche in PDF) o
@@ -21,9 +17,9 @@ function currentMonday(now: ISODate): ISODate {
 export default function TimetablePage() {
   const { data } = useData()
   const now = today()
-  const [monday, setMonday] = useState(() => currentMonday(now))
+  const [monday, setMonday] = useState(() => weekToShow(data, now))
   const [open, setOpen] = useState<TimetableEntry | null>(null)
-  const thisWeek = monday === currentMonday(now)
+  const thisWeek = monday === weekToShow(data, now)
   const t = timetable(data, monday)
   const hours = Array.from({ length: t.rows }, (_, i) => i + 1)
   const hasUnplaced = t.unplaced.size > 0
@@ -54,7 +50,7 @@ export default function TimetablePage() {
           <Button variant="outline" size="icon" aria-label="Settimana precedente" onClick={() => setMonday(addDays(monday, -7))}>
             <ChevronLeftIcon />
           </Button>
-          <Button variant="outline" onClick={() => setMonday(currentMonday(now))} disabled={thisWeek}>
+          <Button variant="outline" onClick={() => setMonday(weekToShow(data, now))} disabled={thisWeek}>
             Oggi
           </Button>
           <Button variant="outline" size="icon" aria-label="Settimana successiva" onClick={() => setMonday(addDays(monday, 7))}>

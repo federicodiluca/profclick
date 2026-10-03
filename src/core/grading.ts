@@ -39,16 +39,61 @@ export interface PeriodGrades {
   status: 'ok' | 'da-pianificare' | 'a-rischio'
 }
 
+/**
+ * I tipi di valutazione da aggiungere: prima quelli richiesti e mancanti, poi a rotazione,
+ * scegliendo il tipo finora meno usato.
+ */
+export function assessmentTypes(course: Course, existing: GradeType[], count: number): GradeType[] {
+  const used = { scritto: 0, teorico: 0, pratico: 0 }
+  for (const t of existing) used[t]++
+  const result: GradeType[] = []
+  for (const t of course.rules.required) {
+    if (result.length < count && used[t] === 0) {
+      result.push(t)
+      used[t]++
+    }
+  }
+  const rotation = course.rules.required.length > 0 ? course.rules.required : (['scritto', 'teorico', 'pratico'] as GradeType[])
+  while (result.length < count) {
+    const next = [...rotation].sort((a, b) => used[a] - used[b])[0]
+    result.push(next)
+    used[next]++
+  }
+  return result
+}
+
 export function targetGrades(course: Course): number {
   return course.rules.perPeriod ?? Math.max(weeklyHours(course), course.rules.required.length)
 }
 
-/** Le valutazioni previste già messe in calendario, con la lezione in cui cadono. */
+/**
+ * Le valutazioni previste già messe in calendario, con la lezione in cui cadono. Quelle della
+ * proposta portano il collegamento; una verifica aggiunta a mano nella lezione si abbina da sola
+ * alla prima prevista ancora libera del suo argomento, dello stesso tipo e, se c'è, dello stesso
+ * peso (pieno o minore). Così un orale messo in calendario non resta anche "da mettere".
+ */
 export function placedAssessments(data: ProfclickData, courseId: string): Map<string, { date: ISODate; done: boolean }> {
   const placed = new Map<string, { date: ISODate; done: boolean }>()
-  for (const lesson of Object.values(data.lessons)) {
-    if (lesson.courseId !== courseId || lesson.cancelled) continue
-    for (const a of lesson.activities) if (a.assessment?.plannedId) placed.set(a.assessment.plannedId, { date: lesson.date, done: isDone(lesson) })
+  const lessons = Object.values(data.lessons)
+    .filter((l) => l.courseId === courseId && !l.cancelled && !l.removed)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const loose: { activity: Activity; at: { date: ISODate; done: boolean } }[] = []
+  for (const lesson of lessons) {
+    const at = { date: lesson.date, done: isDone(lesson) }
+    for (const activity of lesson.activities) {
+      const a = activity.assessment
+      if (!a || activity.kind !== 'verifica' || a.continues) continue
+      if (a.plannedId) placed.set(a.plannedId, at)
+      else loose.push({ activity, at })
+    }
+  }
+  for (const { activity, at } of loose) {
+    const a = activity.assessment!
+    const candidates = activity.topicIds
+      .flatMap((id) => data.topics[id]?.assessments ?? [])
+      .filter((p) => p.type === a.type && !p.done && !placed.has(p.id))
+    const match = candidates.find((p) => isMinor(p) === isMinor(a)) ?? candidates[0]
+    if (match) placed.set(match.id, at)
   }
   return placed
 }
@@ -134,4 +179,45 @@ export function periodGrades(data: ProfclickData, course: Course, period: Period
     civics,
     status,
   }
+}
+
+/** Un voto ancora da dare nel periodo: in calendario, previsto nel programma, o che manca al minimo. */
+export interface NextGrade {
+  type: GradeType
+  weight: number
+  /** L'argomento, o gli argomenti trattati, su cui verte; vuoto se non si sa ancora. */
+  about: string
+  text: string
+  /** La lezione in cui è, se è già in calendario. */
+  date: ISODate | null
+  source: 'calendario' | 'programma' | 'minimo'
+}
+
+/** I voti ancora da dare, nell'ordine in cui verranno: prima quelli in calendario, poi il resto. */
+export function nextGrades(data: ProfclickData, course: Course, grades: PeriodGrades): NextGrade[] {
+  const titles = (ids: string[]) => ids.map((id) => data.topics[id]?.title).filter(Boolean).join(', ')
+  const planned = new Map(Object.values(data.topics).flatMap((t) => t.assessments.map((a) => [a.id, t] as const)))
+  const placed = [...grades.full, ...grades.minor]
+    .filter((g) => g.date && !g.done)
+    .sort((a, b) => a.date!.localeCompare(b.date!))
+    .map((g): NextGrade => {
+      const topic = g.activity.assessment?.plannedId ? planned.get(g.activity.assessment.plannedId) : undefined
+      const about = topic && !topic.assessmentOnly ? topic.title : titles(g.activity.topicIds) || topic?.title || ''
+      return { type: g.type, weight: g.weight, about, text: g.activity.text, date: g.date, source: 'calendario' }
+    })
+  const fromProgram = grades.unplaced.map(({ topic, planned }): NextGrade => ({ type: planned.type, weight: planned.weight, about: topic.title, text: planned.text, date: null, source: 'programma' }))
+  // Quelli che mancano al minimo anche contando le valutazioni previste nel programma.
+  const existing = [...grades.full.map((g) => g.type), ...grades.unplaced.filter((u) => !isMinor(u.planned)).map((u) => u.planned.type)]
+  const missingTypes = course.rules.required.filter((t) => !existing.includes(t)).length
+  const extra = assessmentTypes(course, existing, Math.max(grades.target - existing.length, missingTypes, 0))
+  const toMinimum = extra.map((type): NextGrade => ({ type, weight: 100, about: '', text: '', date: null, source: 'minimo' }))
+  return [...placed, ...fromProgram, ...toMinimum]
+}
+
+/** Le valutazioni previste nel programma del periodo: quante sono e quante ancora senza data. */
+export function programAssessments(data: ProfclickData, course: Course, period: Period, grades: PeriodGrades): { total: number; unplaced: number } {
+  const total = Object.values(data.topics)
+    .filter((t) => t.courseId === course.id && t.periodId === period.id)
+    .reduce((sum, t) => sum + t.assessments.length, 0)
+  return { total, unplaced: grades.unplaced.length }
 }
