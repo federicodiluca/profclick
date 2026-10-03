@@ -18,7 +18,10 @@ servono al docente.
     classe, per recuperare in un colpo. Le lezioni annullate o vuote restano fuori; il peso dei
     voti minori non serve sul registro.
 - **Orario** (Classi, "Orario"): la griglia giorni × ore di scuola con i colori delle classi,
-  dall'orario in vigore oggi. Le lezioni senza ora d'inizio restano nel loro giorno, quelle
+  per una settimana, con le frecce per andare avanti e indietro come nella Settimana. Si
+  ricava dalle stesse lezioni: l'orario in vigore giorno per giorno, le lezioni cambiate a
+  mano o in più (ADR 0018), le festività; le lezioni saltate restano barrate e ogni lezione si
+  apre. Prima seguiva solo l'orario in vigore oggi, e non combaciava con la Settimana. Le lezioni senza ora d'inizio restano nel loro giorno, quelle
   senza giorno fisso a parte. Si stampa (o si salva in PDF) su un A4 orizzontale, sempre con
   il tema chiaro.
 - Due soli modi di esportare, testo da copiare e stampa: niente DOCX o PDF generati da

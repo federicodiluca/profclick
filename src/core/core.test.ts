@@ -913,4 +913,17 @@ describe('orario stampabile', () => {
     expect(t.unplaced.get(3)?.[0].lab).toBe(true)
     expect(t.floating.map((e) => e.course.className)).toEqual(['4B'])
   })
+
+  it("segue i cambi d'orario e le lezioni cambiate a mano di quella settimana", () => {
+    let data = saveCourse({ ...course, schedule: [{ day: 1, hours: 2, lab: false, start: 1 }] })(base())
+    data = changeSchedule('c1', [{ day: 2, hours: 1, lab: false, start: 3 }], '2026-10-12')(data)
+    expect(timetable(data, '2026-10-07').cells.get(cellKey(1, 1))?.hours).toBe(2)
+    expect(timetable(data, '2026-10-14').cells.get(cellKey(2, 3))?.course.id).toBe('c1')
+    expect(timetable(data, '2026-10-14').cells.has(cellKey(1, 1))).toBe(false)
+    // La lezione di martedì 13 cambiata a mano alla 5a ora.
+    data = moveLesson('c1', '2026-10-13', { date: '2026-10-13', hours: 1, start: 5, lab: false })(data)
+    const t = timetable(data, '2026-10-13')
+    expect(t.cells.get(cellKey(2, 5))?.date).toBe('2026-10-13')
+    expect(t.cells.has(cellKey(2, 3))).toBe(false)
+  })
 })
