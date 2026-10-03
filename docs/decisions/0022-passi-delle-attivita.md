@@ -41,7 +41,8 @@ I colori scelti per le classi, poi, si vedevano solo in un pallino accanto al no
   le riunioni passate partono chiuse.
 - Anche la **Settimana** si vede estesa o compatta (una riga per lezione: classe, attività,
   argomenti, ore, spunta), e ogni giorno si chiude toccandone il titolo: resta "3 lezioni ·
-  1 riunione". I giorni già passati si chiudono da soli, finché non li si riapre; la scelta si
+  1 riunione". Nella settimana in corso i giorni già passati si chiudono da soli, finché non
+  li si riapre; nelle settimane prima restano aperti, perché ci si torna per guardarli; la scelta si
   ricorda su questo dispositivo.
   "Tutte pronte" spunta solo quello da preparare: la correzione e i voti sul registro si spuntano
   uno per uno. La vecchia spunta `ready` vale come "tutto il prima pronto" finché non si toccano

@@ -2,6 +2,7 @@
 // classi, è una comodità di chi guarda su questo dispositivo, non un dato da sincronizzare.
 
 import { useState } from 'react'
+import { type ISODate, startOfWeek } from '@/core/dates'
 
 export type ListMode = 'estesa' | 'compatta' | 'chiusa'
 
@@ -65,14 +66,17 @@ function writeDays(key: string, days: Set<string>) {
 }
 
 /**
- * I giorni chiusi nella settimana, per data. I giorni già passati si chiudono da soli, a meno di
- * averli riaperti; gli altri si chiudono a mano. Si tengono solo gli ultimi: quelli vecchi non servono.
+ * I giorni chiusi nella settimana, per data. Nella settimana in corso i giorni già passati si
+ * chiudono da soli, a meno di averli riaperti; tornando alle settimane prima sono aperti, perché
+ * si va a vederli. Gli altri si chiudono a mano. Si tengono solo gli ultimi: quelli vecchi non servono.
  */
-export function useClosedDays(today: string) {
+export function useClosedDays(today: ISODate) {
   const [state, setState] = useState(() => ({ closed: readDays(DAYS_KEY), opened: readDays(OPENED_KEY) }))
-  const isClosed = (date: string) => (date < today ? !state.opened.has(date) : state.closed.has(date))
+  const monday = startOfWeek(today)
+  const auto = (date: string) => date < today && date >= monday
+  const isClosed = (date: string) => (auto(date) ? !state.opened.has(date) : state.closed.has(date))
   const toggle = (date: string) => {
-    const key = date < today ? 'opened' : 'closed'
+    const key = auto(date) ? 'opened' : 'closed'
     const next = new Set(state[key])
     if (!next.delete(date)) next.add(date)
     writeDays(key === 'opened' ? OPENED_KEY : DAYS_KEY, next)
