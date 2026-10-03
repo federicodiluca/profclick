@@ -24,11 +24,12 @@ export interface Todo {
 
 /**
  * Un'interrogazione, o la seconda parte di una valutazione già iniziata, non chiede
- * materiale: il resto sì, dalla spiegazione alla verifica scritta.
+ * materiale: il resto sì, dalla spiegazione alla verifica scritta. Il recupero di uno
+ * scritto o di una prova pratica vuole una prova nuova.
  */
 export function needsPrep(activity: Activity): boolean {
   const a = activity.assessment
-  return !a || (!a.continues && a.type !== 'teorico')
+  return !a || (a.type !== 'teorico' && (!a.continues || Boolean(a.makeup)))
 }
 
 /**

@@ -142,8 +142,13 @@ export interface Assessment {
   type: GradeType
   /** Percentuale di un voto pieno: sotto 100 è un voto minore, che non conta nel minimo. */
   weight: number
-  /** Prosegue una valutazione iniziata in una lezione precedente (es. il giro di interrogazioni). */
+  /**
+   * Prosegue una valutazione iniziata in una lezione precedente: il giro di interrogazioni
+   * su più lezioni, o il recupero per gli assenti. Non è un voto in più.
+   */
   continues: boolean
+  /** Recupero per chi era assente: sempre insieme a continues. */
+  makeup?: boolean
   /** La valutazione prevista nel programma da cui nasce, se c'è. */
   plannedId?: string
 }
@@ -392,6 +397,7 @@ export function assessmentLabel(a: { type: GradeType; weight: number }): string 
 export function activityLabel(activity: Activity): string {
   const a = activity.assessment
   if (activity.kind !== 'verifica' || !a) return KIND_LABELS[activity.kind]
+  if (a.makeup) return `${assessmentLabel(a)} (recupero)`
   return a.continues ? `${assessmentLabel(a)} (continua)` : assessmentLabel(a)
 }
 

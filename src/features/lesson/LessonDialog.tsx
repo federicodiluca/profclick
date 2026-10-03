@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { addActivity, cancelAndShift, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, replaceActivity, setActivityReady, setCancelled, setDone, setNote } from '@/core/actions'
+import { addActivity, cancelAndShift, continueAssessment, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, replaceActivity, setActivityReady, setCancelled, setDone, setNote } from '@/core/actions'
 import { courseSlots } from '@/core/calendar'
 import { assessmentEntry, googleCalendarLink } from '@/core/calendarExport'
 import { formatDay, formatLong, type ISODate, startOfWeek } from '@/core/dates'
@@ -341,6 +341,48 @@ function SkipChoice({ icon: Icon, title, detail, onClick }: { icon: IconComponen
   )
 }
 
+type Part = 'nuovo' | 'continua' | 'recupero'
+
+const PARTS: { value: Part; label: string }[] = [
+  { value: 'nuovo', label: 'Voto nuovo' },
+  { value: 'continua', label: 'Continua la precedente' },
+  { value: 'recupero', label: 'Recupero assenti' },
+]
+
+/** Il giro di interrogazioni: la stessa valutazione nelle lezioni dopo, in un colpo. */
+function ContinueInNext({ courseId, date, activity }: { courseId: string; date: ISODate; activity: Activity }) {
+  const { applyWithUndo } = useData()
+  const [count, setCount] = useState(2)
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+      Continua anche nelle prossime
+      <Input
+        type="number"
+        min={1}
+        max={20}
+        value={count}
+        onChange={(e) => setCount(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+        className="h-7 w-14 text-center"
+        aria-label="Lezioni"
+      />
+      {count === 1 ? 'lezione' : 'lezioni'}
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7"
+        onClick={() =>
+          applyWithUndo(
+            continueAssessment(courseId, date, activity.id, count, newId),
+            count === 1 ? 'Aggiunta alla lezione dopo: conta come un voto solo' : `Aggiunta alle ${count} lezioni dopo: conta come un voto solo`,
+          )
+        }
+      >
+        Aggiungi
+      </Button>
+    </div>
+  )
+}
+
 function ActivityEditor({ courseId, date, activity }: { courseId: string; date: ISODate; activity: Activity }) {
   const { data, apply } = useData()
   const course = data.courses[courseId]
@@ -392,11 +434,18 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
               %
             </label>
           )}
-          <Toggle on={a.continues} onClick={() => setAssessment({ continues: !a.continues })}>
-            Seconda parte della precedente
-          </Toggle>
         </div>
       )}
+
+      {a && (
+        // Interrogazioni su più lezioni e recupero degli assenti: lo stesso voto, non uno nuovo.
+        <Segmented<Part>
+          value={a.makeup ? 'recupero' : a.continues ? 'continua' : 'nuovo'}
+          onChange={(part) => setAssessment({ continues: part !== 'nuovo', makeup: part === 'recupero' || undefined, plannedId: part === 'nuovo' ? a.plannedId : undefined })}
+          options={PARTS}
+        />
+      )}
+      {a && !a.makeup && <ContinueInNext courseId={courseId} date={date} activity={activity} />}
 
       {topics.length > 0 && activity.kind !== 'civica' && (
         <div className="flex flex-wrap gap-1.5" aria-label="Argomenti">

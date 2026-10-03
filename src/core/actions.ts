@@ -212,6 +212,27 @@ export function removeActivity(courseId: string, date: ISODate, activityId: stri
   return updateLesson(courseId, date, (l) => ({ ...l, activities: l.activities.filter((a) => a.id !== activityId) }))
 }
 
+/**
+ * Una valutazione che prende più lezioni (il giro di interrogazioni): la sua prosecuzione va
+ * nelle prossime `count` lezioni non saltate, accanto a quello che c'è già. Conta un voto solo.
+ */
+export function continueAssessment(courseId: string, date: ISODate, activityId: string, count: number, newId: () => string): Change {
+  return (data) => {
+    const course = data.courses[courseId]
+    const activity = data.lessons[lessonKey(courseId, date)]?.activities.find((a) => a.id === activityId)
+    if (!course || !activity?.assessment) return data
+    const { type, weight } = activity.assessment
+    const next = courseSlots(data, course, addDays(date, 1))
+      .filter(isAvailable)
+      .slice(0, count)
+    return next.reduce(
+      (d, slot) =>
+        addActivity(courseId, slot.date, { id: newId(), kind: 'verifica', topicIds: activity.topicIds, text: activity.text, assessment: { type, weight, continues: true } })(d),
+      data,
+    )
+  }
+}
+
 export function setDone(courseId: string, date: ISODate, done: boolean): Change {
   return updateLesson(courseId, date, (l) => ({ ...l, done }))
 }

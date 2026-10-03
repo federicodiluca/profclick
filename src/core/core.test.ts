@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, addExtraLesson, cancelAndShift, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, addExtraLesson, cancelAndShift, continueAssessment, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
 import { registerText } from './registerText'
@@ -12,7 +12,7 @@ import { classSummary, defaultPrep, meetingPeriod, openMeetingPrep, summaryText,
 import { mergeData, sameData } from './merge'
 import { type Course, emptyData, isDone, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
 import { topicProgress } from './progress'
-import { setTodosDone, todos } from './todo'
+import { needsPrep, setTodosDone, todos } from './todo'
 import { assessmentTypes, proposePlan } from './proposal'
 import { sampleData } from './sample'
 import { defaultSchoolYear } from './schoolYear'
@@ -156,6 +156,26 @@ describe('voti', () => {
     expect(g.done).toBe(1)
     expect(g.missing).toBe(3)
     expect(g.missingTypes).toEqual(['pratico'])
+  })
+
+  it('il giro di interrogazioni su più lezioni e il recupero contano un voto solo', () => {
+    let data = base()
+    data = addActivity('c1', '2026-10-05', verifica('a', 'teorico'))(data)
+    data = setCancelled('c1', '2026-10-07', true)(data)
+    let n = 0
+    data = continueAssessment('c1', '2026-10-05', 'a', 3, () => `k${n++}`)(data)
+    const continued = ['2026-10-09', '2026-10-12', '2026-10-14'].map((d) => data.lessons[lessonKey('c1', d)]?.activities[0]?.assessment)
+    expect(continued).toEqual([0, 1, 2].map(() => ({ type: 'teorico', weight: 100, continues: true })))
+    expect(data.lessons[lessonKey('c1', '2026-10-16')]).toBeUndefined()
+    data = addActivity('c1', '2026-10-19', { ...verifica('r', 'teorico', 100, true), assessment: { type: 'teorico', weight: 100, continues: true, makeup: true } })(data)
+    const g = periodGrades(data, data.courses.c1, data.year!.periods[0], '2026-09-29')
+    expect(g.full).toHaveLength(1)
+  })
+
+  it('il recupero di uno scritto va preparato, il seguito di un orale no', () => {
+    expect(needsPrep({ ...verifica('a', 'scritto', 100, true), assessment: { type: 'scritto', weight: 100, continues: true, makeup: true } })).toBe(true)
+    expect(needsPrep(verifica('b', 'scritto', 100, true))).toBe(false)
+    expect(needsPrep({ ...verifica('c', 'teorico', 100, true), assessment: { type: 'teorico', weight: 100, continues: true, makeup: true } })).toBe(false)
   })
 
   it('conta le ore di educazione civica', () => {

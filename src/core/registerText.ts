@@ -16,7 +16,7 @@ const ASSESSMENT_NAMES: Record<keyof typeof GRADE_LABELS, string> = {
 function activityText(data: ProfclickData, activity: Activity): string {
   const a = activity.assessment
   const label =
-    activity.kind === 'verifica' && a ? `${ASSESSMENT_NAMES[a.type]}${a.continues ? ' (seconda parte)' : ''}` : KIND_LABELS[activity.kind]
+    activity.kind === 'verifica' && a ? `${ASSESSMENT_NAMES[a.type]}${a.makeup ? ' di recupero' : a.continues ? ' (seconda parte)' : ''}` : KIND_LABELS[activity.kind]
   const topics = activity.topicIds.map((id) => data.topics[id]?.title).filter(Boolean)
   const detail = [topics.join(', '), activity.text.trim()].filter(Boolean).join(', ')
   return detail ? `${label}: ${detail}` : label
