@@ -163,6 +163,8 @@ export interface Activity {
   assessment?: Assessment
   /** Il materiale è pronto: spunta nella lista Da fare (ADR 0017). */
   ready?: boolean
+  /** Ripete un'attività di una lezione precedente (l'id di quella): ne segue tipo, argomenti e dettagli. */
+  repeatOf?: string
 }
 
 /**

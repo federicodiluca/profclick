@@ -1,15 +1,15 @@
 import { createElement, useState } from 'react'
 import { toast } from 'sonner'
 import { ActivityLine, CourseName, Segmented, Toggle } from '@/components/bits'
-import { CalendarAddIcon, CancelledIcon, DoneIcon, EditIcon, type IconComponent, NoteIcon, RegisterIcon, ShiftIcon, TrashIcon } from '@/components/icons'
+import { CalendarAddIcon, CancelledIcon, DoneIcon, EditIcon, type IconComponent, MinusIcon, NoteIcon, PlusIcon, RegisterIcon, ShiftIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { addActivity, cancelAndShift, continueAssessment, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, replaceActivity, setActivityReady, setCancelled, setDone, setNote } from '@/core/actions'
-import { courseSlots } from '@/core/calendar'
+import { activityRepeats, addActivity, cancelAndShift, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, setActivityReady, setCancelled, setDone, setNote, setRepeats, updateActivity } from '@/core/actions'
+import { courseSlots, isAvailable } from '@/core/calendar'
 import { assessmentEntry, googleCalendarLink } from '@/core/calendarExport'
-import { formatDay, formatLong, type ISODate, startOfWeek } from '@/core/dates'
+import { addDays, formatDay, formatLong, formatShort, type ISODate, startOfWeek } from '@/core/dates'
 import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, isAutoDone, isDone, lessonKey } from '@/core/model'
 import { courseTopics, TEACHING_KINDS, topicAround, topicsSinceLastAssessment } from '@/core/progress'
 import { lessonRegisterText } from '@/core/registerText'
@@ -241,27 +241,40 @@ function LessonEditor({ courseId, date, onClose, onMoved }: { courseId: string; 
             <CancelledIcon /> Lezione saltata
           </Button>
         )}
-        {!cancelled && isAutoDone(lesson) ? (
-          // Passata con qualcosa in programma: conta da sola come fatta.
-          <span className="flex items-center gap-1.5 text-sm font-medium text-done">
-            <DoneIcon className="size-4" /> Fatta
-          </span>
-        ) : !cancelled && (
+        <span className="ml-auto flex flex-wrap items-center gap-2">
+          {!cancelled && isAutoDone(lesson) ? (
+            // Passata con qualcosa in programma: conta da sola come fatta.
+            <span className="flex items-center gap-1.5 text-sm font-medium text-done">
+              <DoneIcon className="size-4" /> Fatta
+            </span>
+          ) : (
+            !cancelled && (
+              <Button
+                variant={done ? 'secondary' : 'outline'}
+                onClick={() => {
+                  apply(setDone(courseId, date, !done))
+                  if (!done) {
+                    toast.success('Lezione fatta')
+                    onClose()
+                  }
+                }}
+                className={cn(done && 'text-done')}
+              >
+                <DoneIcon />
+                {done ? 'Fatta' : 'Segna come fatta'}
+              </Button>
+            )
+          )}
+          {/* Tutto si salva già mentre si scrive: il pulsante chiude e lo conferma. */}
           <Button
-            variant={done ? 'secondary' : 'default'}
             onClick={() => {
-              apply(setDone(courseId, date, !done))
-              if (!done) {
-                toast.success('Lezione fatta')
-                onClose()
-              }
+              onClose()
+              toast.success('Salvato')
             }}
-            className={cn(done && 'text-done')}
           >
-            <DoneIcon />
-            {done ? 'Fatta' : 'Segna come fatta'}
+            Salva
           </Button>
-        )}
+        </span>
       </div>
     </>
   )
@@ -349,45 +362,48 @@ const PARTS: { value: Part; label: string }[] = [
   { value: 'recupero', label: 'Recupero assenti' },
 ]
 
-/** Il giro di interrogazioni: la stessa valutazione nelle lezioni dopo, in un colpo. */
-function ContinueInNext({ courseId, date, activity }: { courseId: string; date: ISODate; activity: Activity }) {
-  const { applyWithUndo } = useData()
-  const [count, setCount] = useState(2)
+/**
+ * Un'attività che prende più lezioni: il giro di interrogazioni, un laboratorio lungo, un
+ * ripasso. Il numero si salva subito; le ripetizioni seguono tipo, argomenti e dettagli.
+ */
+function Repeats({ courseId, date, activity }: { courseId: string; date: ISODate; activity: Activity }) {
+  const { data, apply } = useData()
+  const course = data.courses[courseId]
+  const repeats = activityRepeats(data, courseId, activity.id)
+  const after = repeats.at(-1)?.date ?? date
+  const more = course ? courseSlots(data, course, addDays(after, 1)).some(isAvailable) : false
+  const set = (count: number) => apply(setRepeats(courseId, date, activity.id, count, newId))
   return (
     <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-      Continua anche nelle prossime
-      <Input
-        type="number"
-        min={1}
-        max={20}
-        value={count}
-        onChange={(e) => setCount(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
-        className="h-7 w-14 text-center"
-        aria-label="Lezioni"
-      />
-      {count === 1 ? 'lezione' : 'lezioni'}
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-7"
-        onClick={() =>
-          applyWithUndo(
-            continueAssessment(courseId, date, activity.id, count, newId),
-            count === 1 ? 'Aggiunta alla lezione dopo: conta come un voto solo' : `Aggiunta alle ${count} lezioni dopo: conta come un voto solo`,
-          )
-        }
-      >
-        Aggiungi
-      </Button>
+      Si ripete nelle lezioni dopo
+      <span className="inline-flex items-center rounded-md border">
+        <Button variant="ghost" size="icon-sm" className="size-7" aria-label="Una lezione in meno" disabled={repeats.length === 0} onClick={() => set(repeats.length - 1)}>
+          <MinusIcon />
+        </Button>
+        <span className="w-6 text-center font-medium text-foreground tabular-nums">{repeats.length}</span>
+        <Button variant="ghost" size="icon-sm" className="size-7" aria-label="Una lezione in più" disabled={!more} onClick={() => set(repeats.length + 1)}>
+          <PlusIcon />
+        </Button>
+      </span>
+      {repeats.length > 0 && <span>{repeats.map((r) => formatShort(r.date)).join(', ')}</span>}
+      {activity.assessment && repeats.length > 0 && <span>· un voto solo</span>}
     </div>
   )
+}
+
+/** In una ripetizione: da quale lezione viene. Tipo, argomenti e dettagli si cambiano là. */
+function RepeatedFrom({ courseId, activityId }: { courseId: string; activityId: string }) {
+  const { data } = useData()
+  const from = Object.values(data.lessons).find((l) => l.courseId === courseId && l.activities.some((a) => a.id === activityId))
+  if (!from) return null
+  return <p className="text-xs text-muted-foreground">Ripete quella di {formatLong(from.date)}: cambiandola là, cambia anche qui.</p>
 }
 
 function ActivityEditor({ courseId, date, activity }: { courseId: string; date: ISODate; activity: Activity }) {
   const { data, apply } = useData()
   const course = data.courses[courseId]
   const topics = courseTopics(data, courseId)
-  const update = (patch: Partial<Activity>) => apply(replaceActivity(courseId, date, { ...activity, ...patch }))
+  const update = (patch: Partial<Activity>) => apply(updateActivity(courseId, date, { ...activity, ...patch }))
   const text = useAutosave((value) => value !== activity.text && update({ text: value }))
   const a = activity.assessment
   const setAssessment = (patch: Partial<Assessment>) => a && update({ assessment: { ...a, ...patch } })
@@ -441,11 +457,17 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
         // Interrogazioni su più lezioni e recupero degli assenti: lo stesso voto, non uno nuovo.
         <Segmented<Part>
           value={a.makeup ? 'recupero' : a.continues ? 'continua' : 'nuovo'}
-          onChange={(part) => setAssessment({ continues: part !== 'nuovo', makeup: part === 'recupero' || undefined, plannedId: part === 'nuovo' ? a.plannedId : undefined })}
+          onChange={(part) =>
+            update({
+              // Tornata un voto a sé, non segue più quella da cui era ripetuta.
+              repeatOf: part === 'nuovo' ? undefined : activity.repeatOf,
+              assessment: { ...a, continues: part !== 'nuovo', makeup: part === 'recupero' || undefined, plannedId: part === 'nuovo' ? a.plannedId : undefined },
+            })
+          }
           options={PARTS}
         />
       )}
-      {a && !a.makeup && <ContinueInNext courseId={courseId} date={date} activity={activity} />}
+      {activity.repeatOf ? <RepeatedFrom courseId={courseId} activityId={activity.repeatOf} /> : <Repeats courseId={courseId} date={date} activity={activity} />}
 
       {topics.length > 0 && activity.kind !== 'civica' && (
         <div className="flex flex-wrap gap-1.5" aria-label="Argomenti">

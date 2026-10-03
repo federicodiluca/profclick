@@ -350,6 +350,36 @@ export function PlusIcon(props: IconProps) {
   )
 }
 
+export function MinusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 12h14" />
+    </Icon>
+  )
+}
+
+/** Due strade che diventano una: unisci due valutazioni in un voto solo. */
+export function MergeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="18.5" r="2.5" {...tint} />
+      <circle cx="12" cy="18.5" r="2.5" />
+      <path d="M6 3.5v3a5.5 5.5 0 0 0 5.5 5.5h1A5.5 5.5 0 0 0 18 6.5v-3M12 12v4" />
+    </Icon>
+  )
+}
+
+/** Una strada che si divide in due: separa un voto da quello a cui era unito. */
+export function SplitIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="5.5" r="2.5" {...tint} />
+      <circle cx="12" cy="5.5" r="2.5" />
+      <path d="M12 8v4M6 20.5v-3a5.5 5.5 0 0 1 5.5-5.5h1a5.5 5.5 0 0 1 5.5 5.5v3" />
+    </Icon>
+  )
+}
+
 export function TrashIcon(props: IconProps) {
   return (
     <Icon {...props}>

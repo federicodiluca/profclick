@@ -13,6 +13,8 @@ export interface GradeEvent {
   type: GradeType
   weight: number
   done: boolean
+  /** Le lezioni dopo in cui prosegue (il giro di interrogazioni) o si recupera: sempre lo stesso voto. */
+  parts: { date: ISODate; activity: Activity }[]
 }
 
 export interface PeriodGrades {
@@ -56,6 +58,10 @@ export function periodGrades(data: ProfclickData, course: Course, period: Period
   const full: GradeEvent[] = []
   const minor: GradeEvent[] = []
   const civics = { target: course.civics[period.id] ?? 0, planned: 0, done: 0 }
+  // Ogni prosecuzione va alla valutazione che ripete, o all'ultima dello stesso tipo, o all'ultima.
+  const owners = new Map<string, GradeEvent>()
+  const lastOfType = new Map<GradeType, GradeEvent>()
+  let last: GradeEvent | undefined
 
   for (const slot of slots) {
     const activities = slot.lesson?.activities ?? []
@@ -67,9 +73,19 @@ export function periodGrades(data: ProfclickData, course: Course, period: Period
       }
       const a = activity.assessment
       if (activity.kind !== 'verifica' || !a) continue
-      if (a.continues) continue
-      const event = { date: slot.date, activity, type: a.type, weight: a.weight, done: isDone(slot.lesson) }
+      if (a.continues) {
+        const owner = (activity.repeatOf && owners.get(activity.repeatOf)) || lastOfType.get(a.type) || last
+        if (owner) {
+          owner.parts.push({ date: slot.date, activity })
+          owners.set(activity.id, owner)
+        }
+        continue
+      }
+      const event: GradeEvent = { date: slot.date, activity, type: a.type, weight: a.weight, done: isDone(slot.lesson), parts: [] }
       ;(isMinor(a) ? minor : full).push(event)
+      owners.set(activity.id, event)
+      lastOfType.set(a.type, event)
+      last = event
     }
   }
 
@@ -90,7 +106,7 @@ export function periodGrades(data: ProfclickData, course: Course, period: Period
       }
       const assessment = { type: planned.type, weight: planned.weight, continues: false, plannedId: planned.id }
       const activity: Activity = { id: planned.id, kind: 'verifica', topicIds: [topic.id], text: planned.text, assessment }
-      ;(isMinor(planned) ? minor : full).push({ date: null, activity, type: planned.type, weight: planned.weight, done: true })
+      ;(isMinor(planned) ? minor : full).push({ date: null, activity, type: planned.type, weight: planned.weight, done: true, parts: [] })
     }
   }
 

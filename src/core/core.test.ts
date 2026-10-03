@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, addExtraLesson, cancelAndShift, continueAssessment, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, addExtraLesson, activityRepeats, cancelAndShift, mergeAssessment, separateAssessment, setRepeats, updateActivity, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
 import { registerText } from './registerText'
@@ -163,13 +163,46 @@ describe('voti', () => {
     data = addActivity('c1', '2026-10-05', verifica('a', 'teorico'))(data)
     data = setCancelled('c1', '2026-10-07', true)(data)
     let n = 0
-    data = continueAssessment('c1', '2026-10-05', 'a', 3, () => `k${n++}`)(data)
-    const continued = ['2026-10-09', '2026-10-12', '2026-10-14'].map((d) => data.lessons[lessonKey('c1', d)]?.activities[0]?.assessment)
-    expect(continued).toEqual([0, 1, 2].map(() => ({ type: 'teorico', weight: 100, continues: true })))
-    expect(data.lessons[lessonKey('c1', '2026-10-16')]).toBeUndefined()
+    const id = () => `k${n++}`
+    data = setRepeats('c1', '2026-10-05', 'a', 3, id)(data)
+    expect(activityRepeats(data, 'c1', 'a').map((r) => r.date)).toEqual(['2026-10-09', '2026-10-12', '2026-10-14'])
+    expect(data.lessons[lessonKey('c1', '2026-10-09')].activities[0].assessment).toEqual({ type: 'teorico', weight: 100, continues: true })
     data = addActivity('c1', '2026-10-19', { ...verifica('r', 'teorico', 100, true), assessment: { type: 'teorico', weight: 100, continues: true, makeup: true } })(data)
-    const g = periodGrades(data, data.courses.c1, data.year!.periods[0], '2026-09-29')
+    let g = periodGrades(data, data.courses.c1, data.year!.periods[0], '2026-09-29')
     expect(g.full).toHaveLength(1)
+    expect(g.full[0].parts.map((p) => p.date)).toEqual(['2026-10-09', '2026-10-12', '2026-10-14', '2026-10-19'])
+
+    // Meno ripetizioni: si tolgono le ultime.
+    data = setRepeats('c1', '2026-10-05', 'a', 1, id)(data)
+    expect(activityRepeats(data, 'c1', 'a').map((r) => r.date)).toEqual(['2026-10-09'])
+    // Le ripetizioni seguono le modifiche.
+    data = updateActivity('c1', '2026-10-05', { ...verifica('a', 'pratico'), text: 'gruppo A' })(data)
+    expect(data.lessons[lessonKey('c1', '2026-10-09')].activities[0]).toMatchObject({ text: 'gruppo A', assessment: { type: 'pratico', continues: true } })
+    g = periodGrades(data, data.courses.c1, data.year!.periods[0], '2026-09-29')
+    expect(g.full[0].parts).toHaveLength(2)
+  })
+
+  it('si ripete anche una lezione qualsiasi', () => {
+    let data = base()
+    data = addActivity('c1', '2026-10-05', { id: 'l', kind: 'laboratorio', topicIds: ['t1'], text: 'socket' })(data)
+    data = setRepeats('c1', '2026-10-05', 'l', 2, () => Math.random().toString())(data)
+    expect(data.lessons[lessonKey('c1', '2026-10-07')].activities[0]).toMatchObject({ kind: 'laboratorio', topicIds: ['t1'], text: 'socket', repeatOf: 'l' })
+    expect(data.lessons[lessonKey('c1', '2026-10-09')].activities[0].assessment).toBeUndefined()
+  })
+
+  it('unisce e separa due valutazioni a posteriori', () => {
+    let data = base()
+    data = addActivity('c1', '2026-10-05', verifica('a', 'teorico'))(data)
+    data = addActivity('c1', '2026-10-07', verifica('b', 'scritto'))(data)
+    const period = data.year!.periods[0]
+    expect(periodGrades(data, data.courses.c1, period, '2026-09-29').full).toHaveLength(2)
+    data = mergeAssessment('c1', '2026-10-07', 'b', data.lessons[lessonKey('c1', '2026-10-05')].activities[0])(data)
+    let g = periodGrades(data, data.courses.c1, period, '2026-09-29')
+    expect(g.full).toHaveLength(1)
+    expect(g.full[0].parts[0].activity.assessment?.type).toBe('teorico')
+    data = separateAssessment('c1', '2026-10-07', 'b')(data)
+    g = periodGrades(data, data.courses.c1, period, '2026-09-29')
+    expect(g.full).toHaveLength(2)
   })
 
   it('il recupero di uno scritto va preparato, il seguito di un orale no', () => {

@@ -212,25 +212,81 @@ export function removeActivity(courseId: string, date: ISODate, activityId: stri
   return updateLesson(courseId, date, (l) => ({ ...l, activities: l.activities.filter((a) => a.id !== activityId) }))
 }
 
+/** Le ripetizioni di un'attività nelle lezioni dopo, in ordine di data. */
+export function activityRepeats(data: ProfclickData, courseId: string, activityId: string): { date: ISODate; activity: Activity }[] {
+  return Object.values(data.lessons)
+    .filter((l) => l.courseId === courseId && !l.cancelled)
+    .flatMap((l) => l.activities.filter((a) => a.repeatOf === activityId).map((activity) => ({ date: l.date, activity })))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** La copia di un'attività per una lezione dopo: una valutazione ripetuta prosegue la stessa, è un voto solo. */
+function repeatCopy(activity: Activity, id: string): Activity {
+  const a = activity.assessment
+  return {
+    id,
+    kind: activity.kind,
+    topicIds: activity.topicIds,
+    text: activity.text,
+    repeatOf: activity.id,
+    ...(a && { assessment: { type: a.type, weight: a.weight, continues: true } }),
+  }
+}
+
 /**
- * Una valutazione che prende più lezioni (il giro di interrogazioni): la sua prosecuzione va
- * nelle prossime `count` lezioni non saltate, accanto a quello che c'è già. Conta un voto solo.
+ * Un'attività che prende più lezioni (il giro di interrogazioni, un laboratorio lungo): si
+ * ripete nelle prossime `count` lezioni non saltate, accanto a quello che c'è già. Alzando il
+ * numero si aggiungono in coda, abbassandolo si tolgono le ultime.
  */
-export function continueAssessment(courseId: string, date: ISODate, activityId: string, count: number, newId: () => string): Change {
+export function setRepeats(courseId: string, date: ISODate, activityId: string, count: number, newId: () => string): Change {
   return (data) => {
     const course = data.courses[courseId]
     const activity = data.lessons[lessonKey(courseId, date)]?.activities.find((a) => a.id === activityId)
-    if (!course || !activity?.assessment) return data
-    const { type, weight } = activity.assessment
-    const next = courseSlots(data, course, addDays(date, 1))
+    if (!course || !activity) return data
+    const repeats = activityRepeats(data, courseId, activityId)
+    if (count < repeats.length) return repeats.slice(count).reduce((d, r) => removeActivity(courseId, r.date, r.activity.id)(d), data)
+    const after = repeats.at(-1)?.date ?? date
+    return courseSlots(data, course, addDays(after, 1))
       .filter(isAvailable)
-      .slice(0, count)
-    return next.reduce(
-      (d, slot) =>
-        addActivity(courseId, slot.date, { id: newId(), kind: 'verifica', topicIds: activity.topicIds, text: activity.text, assessment: { type, weight, continues: true } })(d),
-      data,
-    )
+      .slice(0, count - repeats.length)
+      .reduce((d, slot) => addActivity(courseId, slot.date, repeatCopy(activity, newId()))(d), data)
   }
+}
+
+/** Cambia un'attività; le sue ripetizioni seguono tipo, argomenti e dettagli. */
+export function updateActivity(courseId: string, date: ISODate, activity: Activity): Change {
+  return (data) =>
+    activityRepeats(data, courseId, activity.id).reduce(
+      (d, r) => replaceActivity(courseId, r.date, { ...repeatCopy(activity, r.activity.id), ready: r.activity.ready, assessment: r.activity.assessment && activity.assessment && { ...r.activity.assessment, type: activity.assessment.type, weight: activity.assessment.weight } })(d),
+      replaceActivity(courseId, date, activity)(data),
+    )
+}
+
+/**
+ * A posteriori, due valutazioni diventano un voto solo: questa prosegue quella prima (il giro
+ * di interrogazioni, il recupero), di cui prende tipo e peso.
+ */
+export function mergeAssessment(courseId: string, date: ISODate, activityId: string, into: Activity): Change {
+  return updateLesson(courseId, date, (l) => ({
+    ...l,
+    activities: l.activities.map((a) =>
+      a.id === activityId && a.assessment && into.assessment
+        ? { ...a, repeatOf: into.id, assessment: { type: into.assessment.type, weight: into.assessment.weight, continues: true, ...(a.assessment.makeup && { makeup: true }) } }
+        : a,
+    ),
+  }))
+}
+
+/** Una prosecuzione torna a essere un voto a sé. */
+export function separateAssessment(courseId: string, date: ISODate, activityId: string): Change {
+  return updateLesson(courseId, date, (l) => ({
+    ...l,
+    activities: l.activities.map((a) => {
+      if (a.id !== activityId || !a.assessment) return a
+      const { repeatOf: _, ...rest } = a
+      return { ...rest, assessment: { type: a.assessment.type, weight: a.assessment.weight, continues: false } }
+    }),
+  }))
 }
 
 export function setDone(courseId: string, date: ISODate, done: boolean): Change {
