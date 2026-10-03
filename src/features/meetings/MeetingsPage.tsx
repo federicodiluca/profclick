@@ -65,7 +65,7 @@ export default function MeetingsPage() {
 
 function MeetingGrid({ meetings, past, compact, onOpen }: { meetings: Meeting[]; past?: boolean; compact: boolean; onOpen: (id: string) => void }) {
   return (
-    <div className={cn('grid sm:grid-cols-2', compact ? 'gap-1.5' : 'gap-2')}>
+    <div className={cn('grid grid-cols-1 sm:grid-cols-2', compact ? 'gap-1.5' : 'gap-2')}>
       {meetings.map((m) => (
         <MeetingCard key={m.id} meeting={m} showDate past={past} compact={compact} onOpen={() => onOpen(m.id)} />
       ))}

@@ -41,7 +41,7 @@ export default function CoursesPage() {
 
       {courses.length === 0 && <p className="text-muted-foreground">Ancora nessuna classe. Creane una con il suo orario settimanale.</p>}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {courses.map((course) => {
           const progress = topicProgress(data, course)
           const done = progress.filter((p) => p.status === 'fatto').length

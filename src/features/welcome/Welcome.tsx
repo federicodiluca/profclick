@@ -31,7 +31,7 @@ export default function Welcome() {
         </p>
       </div>
 
-      <ul className="grid gap-3 sm:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[
           { icon: BoardIcon, text: 'Il programma diviso per periodi, con le verifiche di ogni argomento' },
           { icon: WrittenTestIcon, text: 'Scritto, orale e pratico: sai sempre quali voti mancano' },

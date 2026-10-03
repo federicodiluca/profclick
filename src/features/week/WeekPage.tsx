@@ -5,7 +5,8 @@ import { activityTone, courseSurface, formatHours } from '@/lib/ui'
 import { CalendarAddIcon, CancelledIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
 import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
-import { setDone } from '@/core/actions'
+import { setActivityReady, setDone } from '@/core/actions'
+import { activitySteps, isAfter } from '@/core/steps'
 import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses, weekToShow } from '@/core/calendar'
 import { addDays, formatLong, formatRange, type ISODate, today, weekday } from '@/core/dates'
 import { meetingsOn } from '@/core/meetings'
@@ -138,7 +139,7 @@ export default function WeekPage() {
       {floating.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">Lezioni della settimana, senza giorno fisso</h2>
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {floating.map((slot) => (
               <LessonCard
                 key={`${slot.courseId}${slot.date}`}
@@ -153,7 +154,7 @@ export default function WeekPage() {
         </section>
       )}
 
-      <div className={cn('grid md:grid-cols-2', compact ? 'gap-3' : 'gap-4')}>
+      <div className={cn('grid grid-cols-1 md:grid-cols-2', compact ? 'gap-3' : 'gap-4')}>
         {days.slice(0, hasSaturday ? 6 : 5).map(({ date, holiday, slots, hiddenSlots, meetings }) => {
           const dayClosed = closedDays.isClosed(date)
           return (
@@ -319,6 +320,8 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
     )
   }
 
+  const prepButton = planned && !done && slot.date >= today() && <PrepBadge slot={slot} compact={compact} />
+
   const doneButton = planned && (
     <button
       type="button"
@@ -369,6 +372,7 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
             {slot.lab && ' · ITP'}
           </span>
         </button>
+        {prepButton}
         {doneButton}
       </div>
     )
@@ -414,7 +418,40 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
         )}
         {lesson?.note && <p className="line-clamp-2 text-xs text-muted-foreground italic">{lesson.note}</p>}
       </button>
+      {prepButton}
       {doneButton}
     </div>
+  )
+}
+
+/**
+ * Il materiale di una lezione che viene, a colpo d'occhio: arancione se c'è ancora da preparare,
+ * verde se è tutto pronto. Un tocco segna pronto tutto (o di nuovo da preparare); i passi uno
+ * per uno stanno nella lezione e nel Da fare.
+ */
+function PrepBadge({ slot, compact }: { slot: LessonSlot; compact: boolean }) {
+  const { apply } = useData()
+  const activities = slot.lesson?.activities ?? []
+  const steps = activities.flatMap((a) => activitySteps(a).filter((s) => !isAfter(s.key)))
+  if (steps.length === 0) return null
+  const ready = steps.filter((s) => s.done).length
+  const all = ready === steps.length
+  const label = all ? 'Materiale pronto: tocca per rimetterlo da preparare' : `Da preparare (${ready} di ${steps.length} pronti): tocca per segnare tutto pronto`
+  return (
+    <button
+      type="button"
+      onClick={() => apply((d) => activities.reduce((x, a) => setActivityReady(slot.courseId, slot.date, a.id, !all)(x), d))}
+      aria-pressed={all}
+      aria-label={label}
+      title={label}
+      className={cn(
+        'relative grid shrink-0 place-items-center self-center rounded-full transition-colors',
+        compact ? 'size-7' : 'size-9',
+        all ? 'text-done hover:bg-done/10' : 'text-warn hover:bg-warn/10',
+      )}
+    >
+      <PrepIcon className={compact ? 'size-4.5' : 'size-5'} />
+      {all && <DoneIcon className="absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full bg-card" />}
+    </button>
   )
 }

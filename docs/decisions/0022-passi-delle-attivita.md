@@ -47,6 +47,9 @@ I colori scelti per le classi, poi, si vedevano solo in un pallino accanto al no
   "Tutte pronte" spunta solo quello da preparare: la correzione e i voti sul registro si spuntano
   uno per uno. La vecchia spunta `ready` vale come "tutto il prima pronto" finché non si toccano
   i passi.
+- Nella settimana, sulle lezioni che vengono e hanno qualcosa da preparare, un'icona dice a colpo
+  d'occhio se il materiale è pronto (verde) o no (arancione); un tocco segna pronto tutto, o lo
+  rimette da preparare. È distinta dal cerchio di "fatta".
 - Nella finestra della lezione, al posto di "Materiale pronto", i passi prima e dopo da spuntare,
   da togliere, e quelli da aggiungere.
 - **Il colore della classe** sta sulle sue cose: una striscia a sinistra e un fondo appena tinto
