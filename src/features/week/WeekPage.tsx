@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { ActivityLine, CourseName } from '@/components/bits'
 import { formatHours } from '@/lib/ui'
-import { CalendarAddIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, RegisterIcon } from '@/components/icons'
+import { CalendarAddIcon, CancelledIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
 import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
 import { setDone } from '@/core/actions'
@@ -10,6 +10,7 @@ import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses
 import { addDays, formatLong, formatRange, type ISODate, today, weekday } from '@/core/dates'
 import { meetingsOn } from '@/core/meetings'
 import { lessonRegisterText } from '@/core/registerText'
+import { todoCourse, todos } from '@/core/todo'
 import { CourseDialog } from '@/features/courses/CourseDialog'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { AddLessonDialog } from '@/features/lesson/LessonTime'
@@ -116,7 +117,9 @@ export default function WeekPage() {
       {courses.length > 1 && <CourseFilter courses={courses} hidden={hidden} onToggle={toggle} onShowAll={showAll} />}
 
       {upcoming > 0 && (
-        <PlanStatus
+        <WeekStatus
+          monday={monday}
+          hidden={hidden}
           missing={unplanned.length}
           thisWeek={thisWeek}
           onPlan={() => setOpen({ courseId: unplanned[0].courseId, date: unplanned[0].date })}
@@ -205,31 +208,50 @@ export default function WeekPage() {
   )
 }
 
-/** Se le lezioni della settimana da qui in avanti hanno tutte qualcosa in programma. */
-function PlanStatus({ missing, thisWeek, onPlan }: { missing: number; thisWeek: boolean; onPlan: () => void }) {
+/**
+ * A che punto è la settimana, in una riga: prima se le lezioni da qui in avanti hanno tutte
+ * qualcosa in programma, poi se quello che serve è pronto (la lista sta nel Da fare).
+ */
+function WeekStatus({ monday, hidden, missing, thisWeek, onPlan }: { monday: ISODate; hidden: Set<string>; missing: number; thisWeek: boolean; onPlan: () => void }) {
+  const { data } = useData()
   const week = thisWeek ? 'questa settimana' : 'della settimana'
-  if (missing === 0) {
+  // In questa settimana anche quello rimasto indietro, come il verbale di una riunione passata.
+  const prep = todos(data, today(), addDays(monday, 6)).filter((t) => t.due && (thisWeek || t.due >= monday) && !hidden.has(todoCourse(t)?.id ?? ''))
+  const open = prep.filter((t) => !t.done).length
+  const row = 'flex w-full items-center justify-between gap-3 rounded-xl border bg-card p-3 text-left text-sm shadow-xs'
+  const action = (label: string) => (
+    <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+      {label} <ChevronRightIcon className="size-4" />
+    </span>
+  )
+
+  if (missing > 0) {
     return (
-      <p className="flex items-center gap-2 rounded-xl border bg-card p-3 text-sm font-medium shadow-xs">
+      <button type="button" onClick={onPlan} className={cn(row, 'transition-colors hover:bg-muted/40')}>
+        <span className="flex min-w-0 items-center gap-2 font-medium">
+          <CalendarAddIcon className="size-5 shrink-0 text-muted-foreground" />
+          {missing === 1 ? `Una lezione ${week} è ancora da pianificare` : `${missing} lezioni ${week} sono ancora da pianificare`}
+        </span>
+        {action('Pianifica')}
+      </button>
+    )
+  }
+  if (open === 0) {
+    return (
+      <p className={cn(row, 'justify-start font-medium')}>
         <DoneIcon className="size-5 shrink-0 text-done" />
-        {thisWeek ? 'Tutte le lezioni di questa settimana sono pianificate' : 'Tutte le lezioni della settimana sono pianificate'}
+        {prep.length > 0 ? `Tutto pianificato e pronto per ${thisWeek ? 'questa settimana' : 'la settimana'}` : `Tutte le lezioni ${thisWeek ? 'di questa settimana' : 'della settimana'} sono pianificate`}
       </p>
     )
   }
   return (
-    <button
-      type="button"
-      onClick={onPlan}
-      className="flex w-full items-center justify-between gap-3 rounded-xl border bg-card p-3 text-left text-sm shadow-xs transition-colors hover:bg-muted/40"
-    >
+    <Link to="/da-fare" className={cn(row, 'transition-colors hover:bg-muted/40')}>
       <span className="flex min-w-0 items-center gap-2 font-medium">
-        <CalendarAddIcon className="size-5 shrink-0 text-muted-foreground" />
-        {missing === 1 ? `Una lezione ${week} è ancora da pianificare` : `${missing} lezioni ${week} sono ancora da pianificare`}
+        <PrepIcon className="size-5 shrink-0 text-warn" />
+        {`Tutto pianificato: controlla cosa c'è da preparare (${open === 1 ? 'una cosa' : `${open} cose`})`}
       </span>
-      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-        Pianifica <ChevronRightIcon className="size-4" />
-      </span>
-    </button>
+      {action(`${prep.length - open} di ${prep.length} pronte`)}
+    </Link>
   )
 }
 
