@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, addExtraLesson, activityRepeats, cancelAndShift, mergeAssessment, separateAssessment, setRepeats, updateActivity, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, addExtraLesson, activityRepeats, cancelAndShift, mergeAssessment, separateAssessment, setRepeats, toggleRepeat, updateActivity, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
 import { registerText } from './registerText'
@@ -188,6 +188,21 @@ describe('voti', () => {
     data = setRepeats('c1', '2026-10-05', 'l', 2, () => Math.random().toString())(data)
     expect(data.lessons[lessonKey('c1', '2026-10-07')].activities[0]).toMatchObject({ kind: 'laboratorio', topicIds: ['t1'], text: 'socket', repeatOf: 'l' })
     expect(data.lessons[lessonKey('c1', '2026-10-09')].activities[0].assessment).toBeUndefined()
+  })
+
+  it('si ripete nelle lezioni scelte, a blocco intero', () => {
+    let data = base()
+    data = addActivity('c1', '2026-10-05', verifica('a', 'teorico'))(data)
+    const id = () => Math.random().toString()
+    // Lunedì e venerdì, non mercoledì; le due ore del venerdì sono una lezione sola.
+    data = toggleRepeat('c1', '2026-10-05', 'a', '2026-10-09', id)(data)
+    data = toggleRepeat('c1', '2026-10-05', 'a', '2026-10-12', id)(data)
+    expect(activityRepeats(data, 'c1', 'a').map((r) => r.date)).toEqual(['2026-10-09', '2026-10-12'])
+    data = toggleRepeat('c1', '2026-10-05', 'a', '2026-10-09', id)(data)
+    expect(activityRepeats(data, 'c1', 'a').map((r) => r.date)).toEqual(['2026-10-12'])
+    // Il + aggiunge dopo l'ultima scelta.
+    data = setRepeats('c1', '2026-10-05', 'a', 2, id)(data)
+    expect(activityRepeats(data, 'c1', 'a').map((r) => r.date)).toEqual(['2026-10-12', '2026-10-14'])
   })
 
   it('unisce e separa due valutazioni a posteriori', () => {

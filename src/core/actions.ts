@@ -235,8 +235,9 @@ function repeatCopy(activity: Activity, id: string): Activity {
 
 /**
  * Un'attività che prende più lezioni (il giro di interrogazioni, un laboratorio lungo): si
- * ripete nelle prossime `count` lezioni non saltate, accanto a quello che c'è già. Alzando il
- * numero si aggiungono in coda, abbassandolo si tolgono le ultime.
+ * ripete nelle prossime `count` lezioni non saltate, accanto a quello che c'è già. Una lezione
+ * è il blocco intero del giorno: due ore di fila sono una lezione. Alzando il numero si
+ * aggiungono in coda, abbassandolo si tolgono le ultime.
  */
 export function setRepeats(courseId: string, date: ISODate, activityId: string, count: number, newId: () => string): Change {
   return (data) => {
@@ -250,6 +251,16 @@ export function setRepeats(courseId: string, date: ISODate, activityId: string, 
       .filter(isAvailable)
       .slice(0, count - repeats.length)
       .reduce((d, slot) => addActivity(courseId, slot.date, repeatCopy(activity, newId()))(d), data)
+  }
+}
+
+/** Una lezione scelta a mano (lunedì e giovedì, non mercoledì): l'attività si ripete lì, o non più. */
+export function toggleRepeat(courseId: string, date: ISODate, activityId: string, target: ISODate, newId: () => string): Change {
+  return (data) => {
+    const activity = data.lessons[lessonKey(courseId, date)]?.activities.find((a) => a.id === activityId)
+    if (!activity || target <= date) return data
+    const existing = activityRepeats(data, courseId, activityId).find((r) => r.date === target)
+    return existing ? removeActivity(courseId, target, existing.activity.id)(data) : addActivity(courseId, target, repeatCopy(activity, newId()))(data)
   }
 }
 

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { activityRepeats, addActivity, cancelAndShift, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, setActivityReady, setCancelled, setDone, setNote, setRepeats, updateActivity } from '@/core/actions'
+import { activityRepeats, addActivity, cancelAndShift, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, setActivityReady, setCancelled, setDone, setNote, setRepeats, toggleRepeat, updateActivity } from '@/core/actions'
 import { courseSlots, isAvailable } from '@/core/calendar'
 import { assessmentEntry, googleCalendarLink } from '@/core/calendarExport'
 import { addDays, formatDay, formatLong, formatShort, type ISODate, startOfWeek } from '@/core/dates'
@@ -362,31 +362,57 @@ const PARTS: { value: Part; label: string }[] = [
   { value: 'recupero', label: 'Recupero assenti' },
 ]
 
+/** Quante lezioni dopo si vedono da scegliere, prima di "Altre lezioni". */
+const PICK_PAGE = 6
+
 /**
  * Un'attività che prende più lezioni: il giro di interrogazioni, un laboratorio lungo, un
- * ripasso. Il numero si salva subito; le ripetizioni seguono tipo, argomenti e dettagli.
+ * ripasso. Le prossime N di fila con − e +, oppure le lezioni scelte una per una. Una lezione è
+ * il blocco intero del giorno, con tutte le sue ore. Tutto si salva subito; le ripetizioni
+ * seguono tipo, argomenti e dettagli.
  */
 function Repeats({ courseId, date, activity }: { courseId: string; date: ISODate; activity: Activity }) {
   const { data, apply } = useData()
+  const [shown, setShown] = useState(PICK_PAGE)
   const course = data.courses[courseId]
   const repeats = activityRepeats(data, courseId, activity.id)
-  const after = repeats.at(-1)?.date ?? date
-  const more = course ? courseSlots(data, course, addDays(after, 1)).some(isAvailable) : false
+  const repeated = new Set(repeats.map((r) => r.date))
+  const next = course ? courseSlots(data, course, addDays(date, 1)).filter(isAvailable) : []
+  const last = repeats.at(-1)?.date ?? date
+  const more = next.some((s) => s.date > last)
+  // Si vedono sempre anche le lezioni già scelte, pure se lontane.
+  const choices = next.filter((s, i) => i < Math.max(shown, repeats.length + 1) || repeated.has(s.date))
   const set = (count: number) => apply(setRepeats(courseId, date, activity.id, count, newId))
   return (
-    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-      Si ripete nelle lezioni dopo
-      <span className="inline-flex items-center rounded-md border">
-        <Button variant="ghost" size="icon-sm" className="size-7" aria-label="Una lezione in meno" disabled={repeats.length === 0} onClick={() => set(repeats.length - 1)}>
-          <MinusIcon />
-        </Button>
-        <span className="w-6 text-center font-medium text-foreground tabular-nums">{repeats.length}</span>
-        <Button variant="ghost" size="icon-sm" className="size-7" aria-label="Una lezione in più" disabled={!more} onClick={() => set(repeats.length + 1)}>
-          <PlusIcon />
-        </Button>
-      </span>
-      {repeats.length > 0 && <span>{repeats.map((r) => formatShort(r.date)).join(', ')}</span>}
-      {activity.assessment && repeats.length > 0 && <span>· un voto solo</span>}
+    <div className="space-y-1.5 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-1.5">
+        Si ripete in
+        <span className="inline-flex items-center rounded-md border">
+          <Button variant="ghost" size="icon-sm" className="size-7" aria-label="Una lezione in meno" disabled={repeats.length === 0} onClick={() => set(repeats.length - 1)}>
+            <MinusIcon />
+          </Button>
+          <span className="w-6 text-center font-medium text-foreground tabular-nums">{repeats.length}</span>
+          <Button variant="ghost" size="icon-sm" className="size-7" aria-label="Una lezione in più" disabled={!more} onClick={() => set(repeats.length + 1)}>
+            <PlusIcon />
+          </Button>
+        </span>
+        {repeats.length === 1 ? 'altra lezione' : 'altre lezioni'}
+        {activity.assessment && repeats.length > 0 && ' · un voto solo'}
+      </div>
+      {next.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Lezioni in cui si ripete">
+          {choices.map((s) => (
+            <Toggle key={s.date} on={repeated.has(s.date)} onClick={() => apply(toggleRepeat(courseId, date, activity.id, s.date, newId))}>
+              {s.floating ? `${s.index}ª lez. sett. ${formatShort(startOfWeek(s.date))}` : formatShort(s.date)} · {formatHours(s.hours)}
+            </Toggle>
+          ))}
+          {choices.length < next.length && (
+            <button type="button" onClick={() => setShown(shown + PICK_PAGE)} className="px-1.5 font-medium text-primary hover:underline">
+              Altre lezioni
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
