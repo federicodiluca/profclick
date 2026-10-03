@@ -33,7 +33,7 @@ export default function Welcome() {
 
       <ul className="grid gap-3 sm:grid-cols-3">
         {[
-          { icon: BoardIcon, text: 'Il programma diviso per periodi, con le ore di ogni argomento' },
+          { icon: BoardIcon, text: 'Il programma diviso per periodi, con le verifiche di ogni argomento' },
           { icon: WrittenTestIcon, text: 'Scritto, orale e pratico: sai sempre quali voti mancano' },
           { icon: SuggestIcon, text: 'Una proposta di piano, da applicare con un tocco' },
         ].map(({ icon: Icon, text }) => (

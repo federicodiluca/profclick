@@ -2,13 +2,14 @@
 // un piano già proposto e due riunioni. Servono a provare ProfClick senza inserire niente e per gli
 // screenshot.
 
-import { applyProposal, markDone, saveCourse, saveMeeting, saveTopics, setYear } from './actions'
+import { applyProposal, markDone, saveCourse, saveMeeting, saveTopics, setActivityStep, setYear } from './actions'
 import { courseSlots } from './calendar'
 import { addDays, type ISODate, startOfWeek } from './dates'
 import { defaultPrep } from './meetings'
 import { type Course, emptyData, type GradeType, type MeetingKind, type ProfclickData } from './model'
 import { proposeWeeks } from './proposal'
 import { defaultSchoolYear, schoolYearStart } from './schoolYear'
+import { activitySteps } from './steps'
 
 /** [titolo, periodo, sotto-punti, valutazioni previste come [tipo, peso, dettaglio]] */
 type SampleTopic = [string, 1 | 2, string[], [GradeType, number, string?][]]
@@ -115,6 +116,12 @@ export function sampleData(today: ISODate): ProfclickData {
     }
     const past = courseSlots(data, data.courses[course.id], undefined, today).filter((s) => s.date < today && s.lesson)
     data = markDone(past)(data)
+    // Quello che c'era da fare dopo le lezioni di più di una settimana fa è fatto; resta quello recente.
+    for (const slot of past.filter((s) => s.date < addDays(today, -7))) {
+      for (const activity of slot.lesson!.activities) {
+        for (const step of activitySteps(activity)) data = setActivityStep(course.id, slot.date, activity.id, step.key, { done: true })(data)
+      }
+    }
   }
 
   // Riunioni di tutti i tipi: una passata, alcune nelle prossime settimane, lo scrutinio

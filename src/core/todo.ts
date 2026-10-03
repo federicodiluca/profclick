@@ -1,16 +1,18 @@
-// Tutto quello da preparare, in un posto solo (ADR 0017). Ogni attività in programma porta
-// con sé il suo materiale: due spiegazioni sono due cose da preparare, senza scriverle a mano.
-// Si aggiungono le voci scritte nelle classi e quelle delle riunioni.
+// Tutto quello da fare, in un posto solo (ADR 0017). Ogni attività in programma porta con sé
+// i suoi passi (ADR 0022): prima il materiale da preparare, dopo, per le valutazioni, la
+// correzione, la riconsegna e i voti sul registro. Si aggiungono le voci scritte nelle classi
+// e quelle delle riunioni.
 
-import { type Change, setActivityReady, toggleMeetingPrep, togglePrep } from './actions'
+import { type Change, setActivityStep, toggleMeetingPrep, togglePrep } from './actions'
 import { courseSlots, sortedCourses } from './calendar'
 import type { ISODate } from './dates'
 import { sortedMeetings } from './meetings'
-import type { Activity, Course, Meeting, MeetingPrep, PrepItem, ProfclickData } from './model'
+import type { Activity, ActivityStep, Course, Meeting, MeetingPrep, PrepItem, ProfclickData } from './model'
 import { coursePrep } from './prep'
+import { activitySteps, defaultSteps, isAfter, STEPS_SINCE } from './steps'
 
 export type TodoSource =
-  | { kind: 'activity'; course: Course; activity: Activity; floating: boolean; index: number; hours: number }
+  | { kind: 'activity'; course: Course; activity: Activity; step: ActivityStep; floating: boolean; index: number; hours: number }
   | { kind: 'prep'; course: Course; item: PrepItem }
   | { kind: 'meeting'; meeting: Meeting; item: MeetingPrep }
 
@@ -28,8 +30,7 @@ export interface Todo {
  * scritto o di una prova pratica vuole una prova nuova.
  */
 export function needsPrep(activity: Activity): boolean {
-  const a = activity.assessment
-  return !a || (a.type !== 'teorico' && (!a.continues || Boolean(a.makeup)))
+  return defaultSteps(activity).some((k) => !isAfter(k))
 }
 
 /**
@@ -40,17 +41,25 @@ export function needsPrep(activity: Activity): boolean {
 export function todos(data: ProfclickData, today: ISODate, until: ISODate): Todo[] {
   const result: Todo[] = []
   for (const course of sortedCourses(data)) {
-    for (const slot of courseSlots(data, course, today, until)) {
+    for (const slot of courseSlots(data, course, undefined, until)) {
       const lesson = slot.lesson
-      // Una lezione fatta è passata: quello che serviva, è servito.
-      if (!lesson || lesson.cancelled || lesson.done) continue
-      for (const activity of lesson.activities.filter(needsPrep)) {
-        result.push({
-          id: activity.id,
-          due: slot.date,
-          done: Boolean(activity.ready),
-          source: { kind: 'activity', course, activity, floating: slot.floating, index: slot.index, hours: slot.hours },
-        })
+      if (!lesson || lesson.cancelled) continue
+      for (const activity of lesson.activities) {
+        for (const step of activitySteps(activity)) {
+          // Prima: finché la lezione non è fatta; quello che serviva, è servito.
+          // Dopo: per le lezioni che vengono, a cose fatte; per quelle passate, finché non è fatto.
+          // Le valutazioni di prima dei passi non li chiedono.
+          const show = isAfter(step.key)
+            ? (slot.date >= today || !step.done) && (Boolean(activity.steps) || slot.date >= STEPS_SINCE)
+            : slot.date >= today && !lesson.done
+          if (!show) continue
+          result.push({
+            id: `${activity.id}:${step.key}`,
+            due: slot.date,
+            done: step.done,
+            source: { kind: 'activity', course, activity, step, floating: slot.floating, index: slot.index, hours: slot.hours },
+          })
+        }
       }
     }
   }
@@ -61,11 +70,35 @@ export function todos(data: ProfclickData, today: ISODate, until: ISODate): Todo
   }
   // Le cose da fare dopo una riunione (il verbale) restano finché non sono fatte, anche passata la riunione.
   for (const meeting of sortedMeetings(data).filter((m) => m.date <= until)) {
-    for (const item of meeting.prep.filter((p) => p.text.trim() && (meeting.date >= today || (p.after && !p.done)))) {
+    // Come per le lezioni: da preparare finché la riunione non c'è stata; dopo, finché non è fatto.
+    const show = (p: MeetingPrep) => (p.after ? meeting.date >= today || !p.done : meeting.date >= today)
+    for (const item of meeting.prep.filter((p) => p.text.trim() && show(p))) {
       result.push({ id: item.id, due: meeting.date, done: item.done, source: { kind: 'meeting', meeting, item } })
     }
   }
   return result.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'))
+}
+
+/** Una cosa da fare dopo (correggere, il registro, il verbale), non da preparare. */
+export function isFollowUp(todo: Todo): boolean {
+  const s = todo.source
+  return s.kind === 'activity' ? isAfter(s.step.key) : s.kind === 'meeting' && Boolean(s.item.after)
+}
+
+/** Nel filtro della settimana le riunioni si spengono come una classe, con questa chiave. */
+export const MEETINGS = 'riunioni'
+
+/**
+ * Da fare dopo una lezione o una riunione che deve ancora venire: si vede per tempo, a cose
+ * fatte, ma non è ancora da fare e non conta tra le cose in sospeso.
+ */
+export function isLater(todo: Todo, today: ISODate): boolean {
+  return isFollowUp(todo) && todo.due !== null && todo.due > today
+}
+
+/** La chiave nel filtro della settimana: la classe, o le riunioni. */
+export function todoFilterKey(todo: Todo): string {
+  return todo.source.kind === 'meeting' ? MEETINGS : todo.source.course.id
 }
 
 /** La classe a cui serve, se è una voce di classe: per il filtro delle classi. */
@@ -76,7 +109,7 @@ export function todoCourse(todo: Todo): Course | null {
 /** Pronto, o di nuovo da preparare: una voce cambia stato. */
 export function toggleTodo(todo: Todo): Change {
   const s = todo.source
-  if (s.kind === 'activity') return setActivityReady(s.course.id, todo.due!, s.activity.id, !todo.done)
+  if (s.kind === 'activity') return setActivityStep(s.course.id, todo.due!, s.activity.id, s.step.key, { done: !todo.done })
   if (s.kind === 'prep') return togglePrep(s.course.id, s.item.id)
   return toggleMeetingPrep(s.meeting.id, s.item.id)
 }

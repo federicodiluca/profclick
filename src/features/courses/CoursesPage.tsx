@@ -8,7 +8,7 @@ import { today } from '@/core/dates'
 import { periodGrades } from '@/core/grading'
 import { weeklyHours } from '@/core/model'
 import { topicProgress } from '@/core/progress'
-import { gradesLine } from '@/lib/ui'
+import { courseSurface, gradesLine } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 import { CourseDialog } from './CourseDialog'
@@ -47,7 +47,7 @@ export default function CoursesPage() {
           const done = progress.filter((p) => p.status === 'fatto').length
           const grades = period ? periodGrades(data, course, period, now) : undefined
           return (
-            <Link key={course.id} to={`/classi/${course.id}`} className="block space-y-3 rounded-xl border bg-card p-4 shadow-xs transition-colors hover:bg-muted/40">
+            <Link key={course.id} to={`/classi/${course.id}`} style={courseSurface(course)} className="block space-y-3 rounded-xl border bg-card p-4 pl-5 shadow-xs transition-opacity hover:opacity-85">
               <div className="flex items-center justify-between gap-2">
                 <CourseName course={course} className="font-semibold" />
                 <span className="text-xs text-muted-foreground">{weeklyHours(course)} h/sett.</span>

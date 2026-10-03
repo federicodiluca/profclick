@@ -414,6 +414,36 @@ export function ChevronRightIcon(props: IconProps) {
   )
 }
 
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m6 9.5 6 6 6-6" />
+    </Icon>
+  )
+}
+
+/** Righe alte con un rigo sotto: la lista estesa. */
+export function ListRoomyIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="4" width="17" height="7" rx="1.5" {...tint} />
+      <rect x="3.5" y="4" width="17" height="7" rx="1.5" />
+      <rect x="3.5" y="13" width="17" height="7" rx="1.5" />
+      <path d="M7 7.5h7M7 16.5h7" />
+    </Icon>
+  )
+}
+
+/** Righe strette, una sotto l'altra: la lista compatta. */
+export function ListCompactIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+      <rect x="3" y="4.5" width="18" height="3" rx="1" {...tint} />
+    </Icon>
+  )
+}
+
 export function ArrowUpIcon(props: IconProps) {
   return (
     <Icon {...props}>

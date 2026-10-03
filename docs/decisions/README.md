@@ -27,3 +27,4 @@ Una decisione superata non si cancella: si scrive un nuovo ADR che la sostituisc
 | [0019](0019-passata-vuol-dire-fatta.md) | Una lezione pianificata e passata è fatta, senza confermarla | Accettata |
 | [0020](0020-senza-ore-stimate.md) | Senza ore stimate: piano a settimane, riepilogo dei prossimi voti | Accettata |
 | [0021](0021-dopo-la-riunione-e-settimana.md) | Cose da fare dopo una riunione, verifiche abbinate al programma, settimana dall'orario | Accettata |
+| [0022](0022-passi-delle-attivita.md) | I passi di un'attività: cosa preparare prima, cosa fare dopo; il colore delle classi | Accettata |

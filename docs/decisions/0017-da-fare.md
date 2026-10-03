@@ -12,7 +12,7 @@ settimana corrente: chi pianificava due spiegazioni doveva scrivere anche due pr
   laboratorio, ripasso, verifica scritta o pratica, voto minore, educazione civica. Restano
   fuori le interrogazioni e le seconde parti di una valutazione già iniziata, che non chiedono
   materiale. Due spiegazioni in due lezioni sono due voci.
-- **La spunta sta sull'attività** (`Activity.ready`), dentro la lezione: niente collezione
+- **La spunta sta sull'attività** (`Activity.ready`; dall'ADR 0022, i suoi passi), dentro la lezione: niente collezione
   nuova, si sincronizza con la lezione, e se la lezione slitta la voce pronta resta pronta.
   La stessa spunta c'è anche nella finestra della lezione.
 - **Un tab "Da fare"**, subito dopo Settimana: le prossime tre settimane (estendibili di due

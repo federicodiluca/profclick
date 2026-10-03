@@ -119,10 +119,10 @@ export interface MeetingPrepDue {
   due: ISODate
 }
 
-/** Le cose ancora da preparare per le riunioni da oggi in poi, e quelle da fare dopo le riunioni passate. */
+/** Le cose ancora da preparare per le riunioni da oggi in poi, e quelle da fare dopo le riunioni già fatte. */
 export function openMeetingPrep(data: ProfclickData, today: ISODate): MeetingPrepDue[] {
   return sortedMeetings(data).flatMap((meeting) =>
-    meeting.prep.filter((p) => !p.done && p.text.trim() && (meeting.date >= today || p.after)).map((item) => ({ meeting, item, due: meeting.date })),
+    meeting.prep.filter((p) => !p.done && p.text.trim() && (p.after || meeting.date >= today)).map((item) => ({ meeting, item, due: meeting.date })),
   )
 }
 

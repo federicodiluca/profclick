@@ -115,6 +115,7 @@
   --course-5: oklch(0.6 0.1 210);
   --course-6: oklch(0.6 0.16 350);
   --course-7: oklch(0.6 0.13 125);
+  --course-tint: 7%;
 }
 
 /* Sul fondo scuro le classi si accendono un po', per restare decise. */
@@ -127,6 +128,7 @@
   --course-5: oklch(0.72 0.11 210);
   --course-6: oklch(0.7 0.17 350);
   --course-7: oklch(0.74 0.15 125);
+  --course-tint: 12%;
 }
 
 @layer base {

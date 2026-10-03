@@ -21,9 +21,11 @@ import {
   type ScheduleSlot,
   type SchoolYear,
   type Stamped,
+  type StepKey,
   type Topic,
 } from './model'
 import type { ProposedLesson } from './proposal'
+import { isAfter, withStep } from './steps'
 
 export type Change = (data: ProfclickData) => ProfclickData
 
@@ -264,13 +266,31 @@ export function toggleRepeat(courseId: string, date: ISODate, activityId: string
   }
 }
 
-/** Cambia un'attività; le sue ripetizioni seguono tipo, argomenti e dettagli. */
+/** Cambiando tipo di attività o di valutazione, i passi salvati non valgono più: tornano quelli proposti. */
+function keepSteps(before: Activity | undefined, after: Activity): Activity {
+  const shape = (a: Activity) => JSON.stringify([a.kind, a.assessment?.type, Boolean(a.assessment?.continues), Boolean(a.assessment?.makeup)])
+  if (!before || !after.steps || shape(before) === shape(after)) return after
+  const { steps: _, ...rest } = after
+  return rest
+}
+
+/** Cambia un'attività; le sue ripetizioni seguono tipo, argomenti e dettagli, e tengono i loro passi. */
 export function updateActivity(courseId: string, date: ISODate, activity: Activity): Change {
-  return (data) =>
-    activityRepeats(data, courseId, activity.id).reduce(
-      (d, r) => replaceActivity(courseId, r.date, { ...repeatCopy(activity, r.activity.id), ready: r.activity.ready, assessment: r.activity.assessment && activity.assessment && { ...r.activity.assessment, type: activity.assessment.type, weight: activity.assessment.weight } })(d),
-      replaceActivity(courseId, date, activity)(data),
+  return (data) => {
+    const find = (d: string, id: string) => data.lessons[lessonKey(courseId, d)]?.activities.find((a) => a.id === id)
+    return activityRepeats(data, courseId, activity.id).reduce(
+      (d, r) => {
+        const copy: Activity = {
+          ...repeatCopy(activity, r.activity.id),
+          ...(r.activity.ready !== undefined && { ready: r.activity.ready }),
+          ...(r.activity.steps && { steps: r.activity.steps }),
+          assessment: r.activity.assessment && activity.assessment && { ...r.activity.assessment, type: activity.assessment.type, weight: activity.assessment.weight },
+        }
+        return replaceActivity(courseId, r.date, keepSteps(r.activity, copy))(d)
+      },
+      replaceActivity(courseId, date, keepSteps(find(date, activity.id), activity))(data),
     )
+  }
 }
 
 /**
@@ -304,9 +324,17 @@ export function setDone(courseId: string, date: ISODate, done: boolean): Change 
   return updateLesson(courseId, date, (l) => ({ ...l, done }))
 }
 
-/** Materiale pronto, o di nuovo da preparare. */
+/** Materiale pronto, o di nuovo da preparare: tutti i passi di prima insieme. */
 export function setActivityReady(courseId: string, date: ISODate, activityId: string, ready: boolean): Change {
-  return updateLesson(courseId, date, (l) => ({ ...l, activities: l.activities.map((a) => (a.id === activityId ? { ...a, ready } : a)) }))
+  return updateLesson(courseId, date, (l) => ({
+    ...l,
+    activities: l.activities.map((a) => (a.id !== activityId ? a : a.steps ? { ...a, steps: a.steps.map((s) => (isAfter(s.key) ? s : { ...s, done: ready })) } : { ...a, ready })),
+  }))
+}
+
+/** Un passo di un'attività fatto o da fare, aggiunto o tolto (ADR 0022). */
+export function setActivityStep(courseId: string, date: ISODate, activityId: string, key: StepKey, change: { done?: boolean; present?: boolean }): Change {
+  return updateLesson(courseId, date, (l) => ({ ...l, activities: l.activities.map((a) => (a.id === activityId ? withStep(a, key, change) : a)) }))
 }
 
 export function setNote(courseId: string, date: ISODate, note: string): Change {

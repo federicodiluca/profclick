@@ -5,7 +5,7 @@ import { InstallButton } from '@/components/InstallButton'
 import { SyncButton } from '@/components/SyncButton'
 import { ThemeButton } from '@/components/ThemeButton'
 import { addDays, today } from '@/core/dates'
-import { todos } from '@/core/todo'
+import { isLater, todos } from '@/core/todo'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 
@@ -39,7 +39,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const ready = data.year !== null
   // Sul tab Da fare, quante cose servono nei prossimi sette giorni e non sono ancora pronte.
   const now = today()
-  const dueSoon = ready ? todos(data, now, addDays(now, 6)).filter((t) => t.due && !t.done).length : 0
+  const dueSoon = ready ? todos(data, now, addDays(now, 6)).filter((t) => t.due && !t.done && !isLater(t, now)).length : 0
   const nav = (
     <>
       <NavLink to="/" icon={WeekIcon}>

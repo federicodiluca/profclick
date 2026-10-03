@@ -7,9 +7,10 @@ lezioni di un giorno comparivano nell'ordine delle classi, non in quello della g
 
 ## Decisione
 
-- Nella settimana, con almeno due classi, una fila di etichette accende e spegne le classi.
-  Le spente spariscono da lezioni e materiale da preparare (gli avvisi sui voti ora stanno nel
-  Riepilogo, ADR 0015); le riunioni restano. Un giorno con solo lezioni nascoste lo dice, così non sembra libero.
+- Nella settimana una fila di etichette accende e spegne le classi, e le riunioni come se fossero
+  una classe in più. Le spente spariscono da lezioni e materiale da preparare (gli avvisi sui voti
+  ora stanno nel Riepilogo, ADR 0015). Un giorno con solo lezioni nascoste lo dice, così non sembra
+  libero.
 - La scelta è di chi guarda su quel dispositivo, come il tema: sta in `localStorage` e non
   si sincronizza.
 - Nell'orario con i giorni ogni lezione può avere l'ora di scuola da cui inizia (`start`,

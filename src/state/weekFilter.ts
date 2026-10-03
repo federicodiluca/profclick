@@ -5,6 +5,8 @@ import { useState } from 'react'
 
 const KEY = 'profclick-week-hidden'
 
+export { MEETINGS } from '@/core/todo'
+
 function read(): string[] {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(KEY) ?? '[]')

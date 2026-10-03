@@ -153,6 +153,14 @@ export interface Assessment {
   plannedId?: string
 }
 
+/** Un passo di un'attività (ADR 0022): prima la si prepara, dopo si corregge e si mettono i voti. */
+export type StepKey = 'prova' | 'rivedere' | 'slide' | 'esercizi' | 'laboratorio' | 'materiale' | 'stampa' | 'correggi' | 'riconsegna' | 'registro'
+
+export interface ActivityStep {
+  key: StepKey
+  done: boolean
+}
+
 export interface Activity {
   id: string
   kind: ActivityKind
@@ -161,8 +169,10 @@ export interface Activity {
   text: string
   /** Presente solo per kind = 'verifica'. */
   assessment?: Assessment
-  /** Il materiale è pronto: spunta nella lista Da fare (ADR 0017). */
+  /** Il materiale è pronto: la spunta di prima dei passi, vale finché non si toccano i passi. */
   ready?: boolean
+  /** I passi, prima e dopo, quando si sono toccati; senza, valgono quelli proposti (steps.ts). */
+  steps?: ActivityStep[]
   /** Ripete un'attività di una lezione precedente (l'id di quella): ne segue tipo, argomenti e dettagli. */
   repeatOf?: string
 }

@@ -13,7 +13,7 @@ import { formatRange, formatShort, startOfWeek, today } from '@/core/dates'
 import { type NextGrade, nextGrades, type PeriodGrades, periodGrades, programAssessments } from '@/core/grading'
 import { type Course, GRADE_LABELS, isMinor, type Period } from '@/core/model'
 import { freeSlots } from '@/core/proposal'
-import { formatHours } from '@/lib/ui'
+import { courseSurface, formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
@@ -110,7 +110,7 @@ function CourseSummary({ course, period }: { course: Course; period: Period }) {
   const note = (course.periodNotes[period.id] ?? '').trim()
 
   return (
-    <section className="space-y-3 rounded-xl border bg-card p-4 shadow-xs">
+    <section style={courseSurface(course)} className="space-y-3 rounded-xl border bg-card p-4 pl-5 shadow-xs">
       <div className="flex items-center justify-between gap-2">
         <Link to={`/classi/${course.id}`} className="min-w-0 font-semibold hover:underline">
           <CourseName course={course} />

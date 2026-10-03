@@ -163,7 +163,7 @@ function Cell({
         entry.cancelled && 'line-through opacity-50',
         className,
       )}
-      style={{ ...style, borderColor: color, background: `color-mix(in oklch, ${color} 16%, var(--card))` }}
+      style={{ ...style, borderColor: color, background: `color-mix(in oklab, ${color} 16%, var(--card))` }}
     >
       <span className="truncate font-semibold">{entry.course.className}</span>
       {entry.course.subject && <span className="hidden truncate text-xs text-muted-foreground sm:block print:block">{entry.course.subject}</span>}

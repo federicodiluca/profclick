@@ -6,14 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { activityRepeats, addActivity, cancelAndShift, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, setActivityReady, setCancelled, setDone, setNote, setRepeats, toggleRepeat, updateActivity } from '@/core/actions'
+import { activityRepeats, addActivity, cancelAndShift, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, setActivityStep, setCancelled, setDone, setNote, setRepeats, toggleRepeat, updateActivity } from '@/core/actions'
 import { courseSlots, isAvailable } from '@/core/calendar'
 import { assessmentEntry, googleCalendarLink } from '@/core/calendarExport'
 import { addDays, formatDay, formatLong, formatShort, type ISODate, startOfWeek } from '@/core/dates'
-import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, isAutoDone, isDone, lessonKey } from '@/core/model'
+import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, isAutoDone, isDone, lessonKey, type StepKey } from '@/core/model'
 import { courseTopics, TEACHING_KINDS, topicAround, topicsSinceLastAssessment } from '@/core/progress'
 import { lessonRegisterText } from '@/core/registerText'
-import { needsPrep } from '@/core/todo'
+import { activitySteps, isAfter, optionalSteps, stepLabel } from '@/core/steps'
 import { activityIcon } from '@/lib/activityIcons'
 import { newId } from '@/lib/id'
 import { formatHours } from '@/lib/ui'
@@ -528,12 +528,7 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
         className="h-8"
       />
 
-      {/* La stessa spunta della lista Da fare. */}
-      {needsPrep(activity) && !data.lessons[lessonKey(courseId, date)]?.done && (
-        <Toggle on={Boolean(activity.ready)} onClick={() => apply(setActivityReady(courseId, date, activity.id, !activity.ready))}>
-          {activity.ready ? 'Materiale pronto' : 'Materiale da preparare'}
-        </Toggle>
-      )}
+      <Steps courseId={courseId} date={date} activity={activity} />
 
       {a && !a.continues && (
         <a
@@ -544,6 +539,66 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
         >
           <CalendarAddIcon className="size-4" /> Aggiungi a Google Calendar
         </a>
+      )}
+    </div>
+  )
+}
+
+/**
+ * I passi dell'attività (ADR 0022), le stesse spunte del Da fare: prima quello da preparare,
+ * dopo, per le valutazioni, correzione, riconsegna e voti sul registro. Si tolgono e si aggiungono.
+ */
+function Steps({ courseId, date, activity }: { courseId: string; date: ISODate; activity: Activity }) {
+  const { apply } = useData()
+  const steps = activitySteps(activity)
+  const extra = optionalSteps(activity)
+  const set = (key: StepKey, change: { done?: boolean; present?: boolean }) => apply(setActivityStep(courseId, date, activity.id, key, change))
+  const group = (title: string, list: typeof steps) =>
+    list.length > 0 && (
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        <ul className="space-y-0.5">
+          {list.map((step) => (
+            <li key={step.key} className="group flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={step.done}
+                onChange={() => set(step.key, { done: !step.done })}
+                className="size-4 shrink-0 accent-[var(--done)]"
+                aria-label={stepLabel(step.key, activity)}
+              />
+              <span className={cn('min-w-0 flex-1', step.done && 'text-muted-foreground line-through')}>{stepLabel(step.key, activity)}</span>
+              <button
+                type="button"
+                onClick={() => set(step.key, { present: false })}
+                aria-label={`Togli ${stepLabel(step.key, activity)}`}
+                className="rounded p-0.5 text-muted-foreground opacity-60 hover:opacity-100"
+              >
+                <TrashIcon className="size-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  return (
+    <div className="space-y-2 rounded-md bg-muted/40 p-2">
+      {group('Da preparare', steps.filter((s) => !isAfter(s.key)))}
+      {group('Dopo', steps.filter((s) => isAfter(s.key)))}
+      {extra.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Aggiungi:</span>
+          {extra.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => set(key, { present: true })}
+              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+            >
+              <PlusIcon className="size-3" /> {stepLabel(key, activity)}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )

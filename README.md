@@ -31,8 +31,9 @@ come app (PWA). Le decisioni di progetto sono in [docs/decisions](docs/decisions
 - **Valutazioni previste** per argomento, con il loro peso; la proposta le mette in
   calendario, le prove pratiche nelle ore con l'ITP. Argomenti e valutazioni già svolti si spuntano
   con un tocco, senza ricostruire le lezioni passate.
-- **Da fare**: slide, esercizi, laboratori, legati all'argomento, con il numero sul tab di
-  quello che serve a breve.
+- **Da fare**: per ogni attività i suoi passi, prima (rivedere la lezione, esercizi, la prova
+  con le sue versioni, e se servono slide e stampe) e dopo (correzione, riconsegna, voti sul registro), con il numero sul tab
+  di quello che serve a breve. Quello da fare dopo resta finché non è fatto.
 - **Riunioni**: consigli di classe, scrutini, GLO, collegi, dipartimenti e corsi, con le cose da
   preparare già proposte per tipo (e quelle in più per il coordinatore), e quelle da fare dopo,
   come il verbale per chi lo scrive, che restano finché non sono fatte. Compaiono nella settimana

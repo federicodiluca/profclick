@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, addExtraLesson, activityRepeats, cancelAndShift, mergeAssessment, separateAssessment, setRepeats, toggleRepeat, updateActivity, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, addExtraLesson, activityRepeats, cancelAndShift, mergeAssessment, separateAssessment, setRepeats, toggleRepeat, updateActivity, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setActivityStep, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
 import { registerText } from './registerText'
@@ -12,7 +12,8 @@ import { classSummary, defaultPrep, meetingPeriod, openMeetingPrep, pendingAfter
 import { mergeData, sameData } from './merge'
 import { type Course, emptyData, isDone, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
 import { topicProgress } from './progress'
-import { needsPrep, setTodosDone, todos } from './todo'
+import { isFollowUp, isLater, needsPrep, setTodosDone, todos } from './todo'
+import { activitySteps, defaultSteps } from './steps'
 import { assessmentTypes, proposeWeeks, shareLessons } from './proposal'
 import { sampleData } from './sample'
 import { defaultSchoolYear } from './schoolYear'
@@ -807,8 +808,11 @@ describe('riunioni', () => {
 })
 
 describe('da fare', () => {
-  const spiega = (id: string, topicId: string) => ({ id, kind: 'spiegazione' as const, topicIds: [topicId], text: '' })
-  const list = (data: ProfclickData) => todos(data, '2026-09-29', '2026-10-11').map((t) => [t.id, t.due, t.done])
+  // Un'esercitazione chiede gli esercizi; una spiegazione, di base, niente.
+  const spiega = (id: string, topicId: string) => ({ id, kind: 'esercitazione' as const, topicIds: [topicId], text: '' })
+  // Quello da chiudere e da preparare; quello a cose fatte (dopo eventi che devono venire) a parte.
+  const list = (data: ProfclickData) => todos(data, '2026-09-29', '2026-10-11').filter((t) => !isLater(t, '2026-09-29')).map((t) => [t.id, t.due, t.done])
+  const later = (data: ProfclickData) => todos(data, '2026-09-29', '2026-10-11').filter((t) => isLater(t, '2026-09-29')).map((t) => t.id)
 
   it('ogni attività in programma è una cosa da preparare, con le voci delle classi e delle riunioni', () => {
     let data = addActivity('c1', '2026-09-28', spiega('ieri', 't1'))(base())
@@ -829,13 +833,14 @@ describe('da fare', () => {
     data = saveMeeting(meeting('m', { date: '2026-10-05', prep: [{ id: 'mp', text: 'Verbale', done: false }] }))(data)
     // Niente lezioni passate, interrogazioni, seconde parti, né quello oltre l'orizzonte.
     expect(list(data)).toEqual([
-      ['s1', '2026-09-30', false],
-      ['s2', '2026-10-02', false],
-      ['v', '2026-10-02', false],
+      ['s1:esercizi', '2026-09-30', false],
+      ['s2:esercizi', '2026-10-02', false],
+      ['v:prova', '2026-10-02', false],
       ['slide', '2026-10-02', false],
       ['mp', '2026-10-05', false],
       ['libro', null, false],
     ])
+    expect(later(data)).toEqual(['orale:registro', 'v:correggi', 'v:riconsegna', 'v:registro'])
   })
 
   it('pronto resta pronto anche se la lezione slitta; a lezione fatta sparisce', () => {
@@ -843,17 +848,48 @@ describe('da fare', () => {
     data = addActivity('c1', '2026-10-02', spiega('s2', 't2'))(data)
     data = setActivityReady('c1', '2026-10-02', 's2', true)(data)
     expect(list(data)).toEqual([
-      ['s1', '2026-09-30', false],
-      ['s2', '2026-10-02', true],
+      ['s1:esercizi', '2026-09-30', false],
+      ['s2:esercizi', '2026-10-02', true],
     ])
     data = cancelAndShift('c1', '2026-09-30')(data)
     expect(list(data)).toEqual([
-      ['s1', '2026-10-02', false],
-      ['s2', '2026-10-05', true],
+      ['s1:esercizi', '2026-10-02', false],
+      ['s2:esercizi', '2026-10-05', true],
     ])
     data = setDone('c1', '2026-10-02', true)(data)
-    expect(list(data)).toEqual([['s2', '2026-10-05', true]])
+    expect(list(data)).toEqual([['s2:esercizi', '2026-10-05', true]])
     expect(normalizeData(JSON.parse(JSON.stringify(data))).lessons[lessonKey('c1', '2026-10-05')].activities[0].ready).toBe(true)
+  })
+
+  it('dopo una verifica: correggere, riconsegnare, voti sul registro, finché non sono fatti', () => {
+    // Oggi è il 29 settembre: lo scritto di ieri chiede i passi dopo; l'orale di prima dei passi no.
+    let data = addActivity('c1', '2026-09-28', { ...verifica('v', 'scritto'), topicIds: ['t1'] })(base())
+    data = addActivity('c1', '2026-09-21', verifica('o', 'teorico'))(data)
+    data = addActivity('c1', '2026-10-02', verifica('p', 'pratico'))(data)
+    expect(list(data)).toEqual([
+      ['v:correggi', '2026-09-28', false],
+      ['v:riconsegna', '2026-09-28', false],
+      ['v:registro', '2026-09-28', false],
+      ['p:prova', '2026-10-02', false],
+    ])
+    // Quello che verrà dopo il pratico di venerdì si vede già, a parte.
+    expect(later(data)).toEqual(['p:correggi', 'p:riconsegna', 'p:registro'])
+    // "Tutte pronte" è per quello da preparare: il registro resta da spuntare a mano.
+    data = setTodosDone(todos(data, '2026-09-29', '2026-10-11').filter((t) => !isFollowUp(t)), true)(data)
+    data = setActivityStep('c1', '2026-09-28', 'v', 'registro', { done: true })(data)
+    expect(list(data)).toEqual([
+      ['v:correggi', '2026-09-28', false],
+      ['v:riconsegna', '2026-09-28', false],
+      ['p:prova', '2026-10-02', true],
+    ])
+    // La stampa si aggiunge quando serve; cambiando tipo tornano i passi proposti.
+    data = setActivityStep('c1', '2026-10-02', 'p', 'stampa', { present: true })(data)
+    expect(activitySteps(data.lessons[lessonKey('c1', '2026-10-02')].activities[0]).map((x) => x.key)).toEqual(['prova', 'stampa', 'correggi', 'riconsegna', 'registro'])
+    const p = data.lessons[lessonKey('c1', '2026-10-02')].activities[0]
+    data = updateActivity('c1', '2026-10-02', { ...p, assessment: { ...p.assessment!, type: 'teorico' } })(data)
+    expect(activitySteps(data.lessons[lessonKey('c1', '2026-10-02')].activities[0]).map((x) => x.key)).toEqual(['registro'])
+    expect(defaultSteps({ id: 'e', kind: 'esercitazione', topicIds: [], text: '' })).toEqual(['esercizi'])
+    expect(defaultSteps({ id: 's', kind: 'spiegazione', topicIds: [], text: '' })).toEqual(['rivedere'])
   })
 
   it('tante voci insieme: si cambiano solo quelle da cambiare', () => {
