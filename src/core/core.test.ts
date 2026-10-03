@@ -892,6 +892,16 @@ describe('da fare', () => {
     expect(defaultSteps({ id: 's', kind: 'spiegazione', topicIds: [], text: '' })).toEqual(['rivedere'])
   })
 
+  it("nello stesso giorno, l'ordine della giornata: lezioni per ora d'inizio, poi le riunioni", () => {
+    // 3A alla terza ora, 4B (che viene dopo tra le classi) alla prima.
+    let data = saveCourse({ ...course, schedule: [{ day: 1, hours: 2, lab: false, start: 3 }] })(base())
+    data = saveCourse({ ...course, id: 'c2', className: '4B', order: 1, schedule: [{ day: 1, hours: 1, lab: false, start: 1 }] })(data)
+    data = addActivity('c1', '2026-10-05', spiega('tardi', 't1'))(data)
+    data = addActivity('c2', '2026-10-05', spiega('presto', 't1'))(data)
+    data = saveMeeting(meeting('m', { date: '2026-10-05', time: '15:00', prep: [{ id: 'mp', text: 'Punti', done: false }] }))(data)
+    expect(list(data).map(([id]) => id)).toEqual(['presto:esercizi', 'tardi:esercizi', 'mp'])
+  })
+
   it('tante voci insieme: si cambiano solo quelle da cambiare', () => {
     let data = addActivity('c1', '2026-09-30', spiega('s1', 't1'))(base())
     data = addActivity('c1', '2026-10-02', spiega('s2', 't2'))(data)

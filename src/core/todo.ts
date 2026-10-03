@@ -12,7 +12,7 @@ import { coursePrep } from './prep'
 import { activitySteps, defaultSteps, isAfter, STEPS_SINCE } from './steps'
 
 export type TodoSource =
-  | { kind: 'activity'; course: Course; activity: Activity; step: ActivityStep; floating: boolean; index: number; hours: number }
+  | { kind: 'activity'; course: Course; activity: Activity; step: ActivityStep; floating: boolean; index: number; hours: number; start?: number }
   | { kind: 'prep'; course: Course; item: PrepItem }
   | { kind: 'meeting'; meeting: Meeting; item: MeetingPrep }
 
@@ -57,7 +57,7 @@ export function todos(data: ProfclickData, today: ISODate, until: ISODate): Todo
             id: `${activity.id}:${step.key}`,
             due: slot.date,
             done: step.done,
-            source: { kind: 'activity', course, activity, step, floating: slot.floating, index: slot.index, hours: slot.hours },
+            source: { kind: 'activity', course, activity, step, floating: slot.floating, index: slot.index, hours: slot.hours, start: slot.start },
           })
         }
       }
@@ -76,7 +76,7 @@ export function todos(data: ProfclickData, today: ISODate, until: ISODate): Todo
       result.push({ id: item.id, due: meeting.date, done: item.done, source: { kind: 'meeting', meeting, item } })
     }
   }
-  return result.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'))
+  return result.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || dayOrder(a) - dayOrder(b))
 }
 
 /** Una cosa da fare dopo (correggere, il registro, il verbale), non da preparare. */
@@ -99,6 +99,19 @@ export function isLater(todo: Todo, today: ISODate): boolean {
 /** La chiave nel filtro della settimana: la classe, o le riunioni. */
 export function todoFilterKey(todo: Todo): string {
   return todo.source.kind === 'meeting' ? MEETINGS : todo.source.course.id
+}
+
+/**
+ * Nello stesso giorno, l'ordine della giornata: le lezioni per ora d'inizio, come nella
+ * settimana (senza ora, dopo, nell'ordine delle classi), poi le voci delle classi, poi le
+ * riunioni del pomeriggio per orario.
+ */
+function dayOrder(todo: Todo): number {
+  const s = todo.source
+  if (s.kind === 'activity') return s.start ?? 99
+  if (s.kind === 'prep') return 100
+  const [h, m] = s.meeting.time.split(':').map(Number)
+  return 200 + (s.meeting.time ? h * 60 + m : 24 * 60)
 }
 
 /** La classe a cui serve, se è una voce di classe: per il filtro delle classi. */
