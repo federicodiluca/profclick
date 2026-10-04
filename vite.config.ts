@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { readdirSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -34,6 +35,16 @@ function contentSecurityPolicy(): Plugin {
   }
 }
 
+/** Le guide (/guide/ e /guide/<argomento>/) sono pagine statiche come la landing: ogni cartella con un index.html è una pagina. */
+function guidePages(): Record<string, string> {
+  const root = fileURLToPath(new URL('./guide/', import.meta.url))
+  const pages: Record<string, string> = { guide: root + 'index.html' }
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.isDirectory()) pages[`guide-${entry.name}`] = `${root}${entry.name}/index.html`
+  }
+  return pages
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -65,7 +76,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Il font ha file per ogni alfabeto; per l'italiano bastano latin e latin-ext.
-        globIgnores: ['**/*-cyrillic*', '**/*-vietnamese*', '**/*-greek*', 'story.png'],
+        globIgnores: ['**/*-cyrillic*', '**/*-vietnamese*', '**/*-greek*', 'story.png', 'guide/**'],
         navigateFallback: '/app/index.html',
         navigateFallbackAllowlist: [/^\/app\//],
       },
@@ -79,6 +90,7 @@ export default defineConfig({
       input: {
         landing: fileURLToPath(new URL('./index.html', import.meta.url)),
         app: fileURLToPath(new URL('./app/index.html', import.meta.url)),
+        ...guidePages(),
       },
     },
   },

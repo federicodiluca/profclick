@@ -115,7 +115,10 @@
           <img src="/favicon.svg" alt="" class="size-8" width="32" height="32" />
           ProfClick
         </a>
-        <a href="/app/" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/85">Apri l'app</a>
+        <nav class="flex items-center gap-4">
+          <a href="/guide/" class="text-sm font-semibold hover:underline">Guide</a>
+          <a href="/app/" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/85">Apri l'app</a>
+        </nav>
       </header>
 
       <main>
@@ -236,6 +239,39 @@
           </div>
         </section>
 
+        <section class="space-y-6 py-12">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <h2 class="font-heading text-3xl font-bold tracking-tight">Guide per docenti</h2>
+            <a href="/guide/" class="text-sm font-semibold hover:underline">Tutte le guide</a>
+          </div>
+          <ul class="grid gap-4 md:grid-cols-2">
+            <li>
+              <a href="/guide/quanti-voti-a-quadrimestre/" class="block h-full space-y-1 rounded-2xl border bg-card p-5 transition hover:border-primary">
+                <h3 class="font-semibold">Quanti voti servono a quadrimestre?</h3>
+                <p class="text-sm text-muted-foreground">Cosa dice la normativa, la regola più diffusa e gli esempi per ore settimanali.</p>
+              </a>
+            </li>
+            <li>
+              <a href="/guide/piano-di-lavoro-annuale/" class="block h-full space-y-1 rounded-2xl border bg-card p-5 transition hover:border-primary">
+                <h3 class="font-semibold">Il piano di lavoro annuale</h3>
+                <p class="text-sm text-muted-foreground">Cosa contiene e come distribuire argomenti e verifiche sulle ore vere.</p>
+              </a>
+            </li>
+            <li>
+              <a href="/guide/programma-svolto/" class="block h-full space-y-1 rounded-2xl border bg-card p-5 transition hover:border-primary">
+                <h3 class="font-semibold">Il programma svolto</h3>
+                <p class="text-sm text-muted-foreground">Cosa scrivere, le quinte e il documento del 15 maggio, un esempio.</p>
+              </a>
+            </li>
+            <li>
+              <a href="/guide/consiglio-di-classe-e-scrutinio/" class="block h-full space-y-1 rounded-2xl border bg-card p-5 transition hover:border-primary">
+                <h3 class="font-semibold">Consiglio di classe e scrutinio</h3>
+                <p class="text-sm text-muted-foreground">Cosa preparare, anche da coordinatore, il verbale e il GLO.</p>
+              </a>
+            </li>
+          </ul>
+        </section>
+
         <section class="space-y-4 py-12">
           <h2 class="font-heading text-3xl font-bold tracking-tight">Domande frequenti</h2>
           <div class="divide-y rounded-2xl border bg-card">
@@ -274,6 +310,7 @@
           e docente.
         </p>
         <nav class="flex gap-4">
+          <a href="/guide/" class="hover:underline">Guide</a>
           <a href="/privacy/" class="hover:underline">Privacy</a>
           <a href="https://github.com/federicodiluca/profclick" class="hover:underline">Codice sorgente</a>
         </nav>
