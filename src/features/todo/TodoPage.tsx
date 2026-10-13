@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { sortedCourses, weekToShow } from '@/core/calendar'
 import { addDays, formatDay, formatShort, type ISODate, startOfWeek, today } from '@/core/dates'
 import { activityLabel, meetingLabel } from '@/core/model'
-import { stepLabel } from '@/core/steps'
+import { isAfter, stepLabel } from '@/core/steps'
 import { isFollowUp, isLater, setTodosDone, type Todo, todoFilterKey, todos, toggleTodo } from '@/core/todo'
 import { activityIcon } from '@/lib/activityIcons'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
@@ -278,7 +278,7 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
   const main = activities.find((a) => a.kind === 'verifica') ?? activities[0]
   const topics = [...new Set(activities.flatMap((a) => a.topicIds))].map((id) => data.topics[id]?.title).filter(Boolean).join(', ')
   const labels = list.map((t) => (t.source.kind === 'activity' ? stepLabel(t.source.step.key, t.source.activity) : ''))
-  const mark = gradeMark(activities)
+  const mark = gradeMark(activities, list.some((t) => !t.done && t.source.kind === 'activity' && !isAfter(t.source.step.key)))
   const checks = list.map((todo, i) => {
     if (todo.source.kind !== 'activity') return null
     const activity = todo.source.activity
@@ -308,7 +308,7 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
     )
   }
   return (
-    <li style={courseSurface(s.course, { tint: false })} className={cn('space-y-2 px-3 py-3 pl-4', mark?.strong && 'bg-pencil-red/5')}>
+    <li style={courseSurface(s.course, { tint: false })} className={'space-y-2 px-3 py-3 pl-4'}>
       <button type="button" onClick={onOpen} className={cn('block w-full min-w-0 text-left', allDone && 'opacity-60')}>
         <span className="flex min-w-0 items-start gap-2 text-base">
           {createElement(activityIcon(main), { className: cn('mt-1 size-4 shrink-0', activityTone(main)) })}

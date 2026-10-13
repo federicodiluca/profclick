@@ -175,7 +175,15 @@
   -webkit-mask-image: linear-gradient(to right, transparent 4%, black 45%);
   mask-image: linear-gradient(to right, transparent 4%, black 45%);
 }
-.grade-edge-strong::after {
-  border-width: 2px;
-  opacity: 1;
+/* Con qualcosa ancora da preparare: un secondo filo dentro il primo. */
+.grade-edge-double::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid var(--pencil-red);
+  border-radius: calc(var(--radius-xl, 0.75rem) - 3px);
+  pointer-events: none;
+  opacity: 0.6;
+  -webkit-mask-image: linear-gradient(to right, transparent 4%, black 45%);
+  mask-image: linear-gradient(to right, transparent 4%, black 45%);
 }

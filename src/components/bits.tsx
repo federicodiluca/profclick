@@ -34,13 +34,9 @@ export function GradeBadge({ mark, iconOnly }: { mark: GradeMark; iconOnly?: boo
   return (
     <span
       title={`Si mette un voto: ${mark.label.toLowerCase()}`}
-      className={cn(
-        'inline-flex shrink-0 items-center gap-1 rounded-full border border-pencil-red/50 text-pencil-red',
-        mark.strong ? 'border-pencil-red bg-pencil-red/12 px-2 py-0.5 text-xs font-bold' : 'px-1.5 py-0.5 text-xs font-medium',
-        iconOnly && 'px-1',
-      )}
+      className={cn('inline-flex shrink-0 items-center gap-1 rounded-full border border-pencil-red/50 px-1.5 py-0.5 text-xs font-medium text-pencil-red', iconOnly && 'px-1')}
     >
-      {createElement(GRADE_ICONS[mark.type], { className: mark.strong ? 'size-4' : 'size-3.5' })}
+      {createElement(GRADE_ICONS[mark.type], { className: 'size-3.5' })}
       {iconOnly ? <span className="sr-only">{mark.label}</span> : mark.label}
     </span>
   )

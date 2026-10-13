@@ -27,29 +27,26 @@ export function activityTone(activity: Activity): string {
 }
 
 /**
- * Una lezione in cui si mette un voto: contorno rosso e icona del tipo di prova. Più marcato
- * per un orale o un pratico (voto pieno), più leggero per lo scritto o un voto minore.
+ * Una lezione in cui si mette un voto: contorno rosso e icona del tipo di prova, uguali per
+ * tutte le prove. Il doppio contorno dice che c'è ancora qualcosa da preparare.
  */
 export interface GradeMark {
   type: GradeType
-  strong: boolean
   /** "Orale", "Pratico", "Scritto 50%". */
   label: string
   /** Contorno della scheda. */
   border: string
 }
 
-export function gradeMark(activities: Activity[]): GradeMark | null {
+export function gradeMark(activities: Activity[], toPrepare = false): GradeMark | null {
   const graded = activities.flatMap((a) => (a.kind === 'verifica' && a.assessment ? [a.assessment] : []))
   if (graded.length === 0) return null
   // Se ce n'è più d'una, vale la più impegnativa.
   const pick = graded.find((a) => a.type !== 'scritto' && !isMinor(a)) ?? graded.find((a) => !isMinor(a)) ?? graded[0]
-  const strong = pick.type !== 'scritto' && !isMinor(pick)
   return {
     type: pick.type,
-    strong,
     label: isMinor(pick) ? `${GRADE_LABELS[pick.type]} ${pick.weight}%` : GRADE_LABELS[pick.type],
-    border: strong ? 'grade-edge grade-edge-strong' : 'grade-edge',
+    border: toPrepare ? 'grade-edge grade-edge-double' : 'grade-edge',
   }
 }
 

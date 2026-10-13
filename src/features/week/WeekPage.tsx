@@ -300,7 +300,8 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
   const done = isDone(lesson)
   const auto = isAutoDone(lesson)
   const planned = (lesson?.activities.length ?? 0) > 0
-  const mark = planned ? gradeMark(lesson!.activities) : null
+  const toPrepare = planned && !done && slot.date >= today() && lesson!.activities.some((a) => activitySteps(a).some((s) => !isAfter(s.key) && !s.done))
+  const mark = planned ? gradeMark(lesson!.activities, toPrepare) : null
 
   if (lesson?.cancelled) {
     return (
@@ -373,7 +374,7 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
             {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
             {slot.lab && ' · ITP'}
           </span>
-          {mark && <GradeBadge mark={mark} iconOnly={!mark.strong} />}
+          {mark && <GradeBadge mark={mark} iconOnly />}
         </button>
         {prepButton}
         {doneButton}
