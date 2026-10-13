@@ -159,3 +159,23 @@
     -webkit-print-color-adjust: exact;
   }
 }
+
+/* Lezione con voto: il contorno rosso sfuma verso sinistra, così la striscia della materia resta visibile. */
+.grade-edge {
+  position: relative;
+}
+.grade-edge::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--pencil-red);
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.6;
+  -webkit-mask-image: linear-gradient(to right, transparent 4%, black 45%);
+  mask-image: linear-gradient(to right, transparent 4%, black 45%);
+}
+.grade-edge-strong::after {
+  border-width: 2px;
+  opacity: 1;
+}

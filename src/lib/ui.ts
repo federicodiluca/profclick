@@ -49,7 +49,7 @@ export function gradeMark(activities: Activity[]): GradeMark | null {
     type: pick.type,
     strong,
     label: isMinor(pick) ? `${GRADE_LABELS[pick.type]} ${pick.weight}%` : GRADE_LABELS[pick.type],
-    border: strong ? 'border-2 border-pencil-red' : 'border-pencil-red/50',
+    border: strong ? 'grade-edge grade-edge-strong' : 'grade-edge',
   }
 }
 
