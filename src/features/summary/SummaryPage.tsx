@@ -82,7 +82,7 @@ function PeriodWeeks({ period, now }: { period: Period; now: string }) {
   const pct = weeks.length ? Math.min(100, (passed / weeks.length) * 100) : 0
   return (
     <div className="space-y-1">
-      <div className="flex justify-between text-xs text-muted-foreground">
+      <div className="flex justify-between gap-3 text-sm text-muted-foreground">
         <span>{period.name}</span>
         <span>{text}</span>
       </div>
@@ -94,9 +94,20 @@ function PeriodWeeks({ period, now }: { period: Period; now: string }) {
 }
 
 const STATUS: Record<PeriodGrades['status'], { label: string; tone: string }> = {
-  ok: { label: 'In regola', tone: 'text-done' },
-  'da-pianificare': { label: 'Da pianificare', tone: 'text-warn' },
-  'a-rischio': { label: 'A rischio', tone: 'text-pencil-red' },
+  ok: { label: 'In regola', tone: 'bg-done/15 text-done' },
+  'da-pianificare': { label: 'Da pianificare', tone: 'bg-warn/15 text-warn' },
+  'a-rischio': { label: 'A rischio', tone: 'bg-pencil-red/12 text-pencil-red' },
+}
+
+/** Un numero con la sua etichetta: si legge a colpo d'occhio, senza cercarlo nella frase. */
+function Stat({ value, label, hint }: { value: string; label: string; hint?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-muted/50 px-3 py-2">
+      <p className="text-xl leading-tight font-bold tabular-nums">{value}</p>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
 }
 
 function CourseSummary({ course, period }: { course: Course; period: Period }) {
@@ -110,27 +121,37 @@ function CourseSummary({ course, period }: { course: Course; period: Period }) {
   const note = (course.periodNotes[period.id] ?? '').trim()
 
   return (
-    <section style={courseSurface(course)} className="space-y-3 rounded-xl border bg-card p-4 pl-5 shadow-xs">
+    <section style={courseSurface(course)} className="space-y-4 rounded-xl border bg-card p-4 pl-5 shadow-xs">
       <div className="flex items-center justify-between gap-2">
-        <Link to={`/classi/${course.id}`} className="min-w-0 font-semibold hover:underline">
+        <Link to={`/classi/${course.id}`} className="min-w-0 text-base font-semibold hover:underline">
           <CourseName course={course} />
         </Link>
-        <span className={cn('relative shrink-0 text-xs font-semibold', status.tone)}>
+        <span className={cn('relative shrink-0 rounded-full px-2.5 py-0.5 text-sm font-semibold', status.tone)}>
           {status.label}
-          {grades.status === 'ok' && <PencilTick className="absolute -top-2.5 -right-5 size-5 text-pencil-blue" />}
+          {grades.status === 'ok' && <PencilTick className="absolute -top-3 -right-4 size-5 text-pencil-blue" />}
           {grades.status === 'a-rischio' && <PencilWave />}
         </span>
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        {grades.remainingLessons === 0 ? 'Nessuna lezione rimasta' : grades.remainingLessons === 1 ? 'Resta una lezione' : `Restano ${grades.remainingLessons} lezioni`}
-        {grades.status !== 'ok' && <ToPlan course={course} period={period} />}
-      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <Stat value={String(grades.remainingLessons)} label={grades.remainingLessons === 1 ? 'lezione rimasta' : 'lezioni rimaste'} />
+        <Stat
+          value={`${grades.done} su ${grades.target}`}
+          label={grades.done === 1 ? 'voto fatto' : 'voti fatti'}
+          hint={grades.civics.target > 0 ? `Ed. civica ${formatHours(grades.civics.planned)} su ${formatHours(grades.civics.target)}` : undefined}
+        />
+      </div>
+
+      {grades.status !== 'ok' && (
+        <p className="text-sm">
+          <ToPlan course={course} period={period} />
+        </p>
+      )}
 
       {next.length > 0 ? (
-        <div className="space-y-1.5">
-          <h3 className="text-xs font-medium text-muted-foreground">{next.length === 1 ? 'Prossimo voto' : 'Prossimi voti'}</h3>
-          <ul className="space-y-1">
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">{next.length === 1 ? 'Prossimo voto' : 'Prossimi voti'}</h3>
+          <ul className="space-y-2">
             {next.map((g, i) => (
               <NextGradeLine key={i} grade={g} />
             ))}
@@ -140,19 +161,13 @@ function CourseSummary({ course, period }: { course: Course; period: Period }) {
         <p className="text-sm text-muted-foreground">Nessun altro voto da dare in questo periodo.</p>
       )}
 
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
-        <div className="space-y-0.5">
-          {program.total > 0 && (
-            <p>
-              Dal programma {program.total === 1 ? 'una valutazione' : `${program.total} valutazioni`}:{' '}
-              {program.unplaced === 0 ? (program.total === 1 ? 'già messa' : 'tutte già messe') : `${program.total - program.unplaced} già messe, ${program.unplaced} da mettere`}
-            </p>
-          )}
-          <p>
-            Voti {grades.done} {grades.done === 1 ? 'fatto' : 'fatti'} su {grades.target}
-            {grades.civics.target > 0 && ` · Ed. civica ${formatHours(grades.civics.planned)} in calendario su ${formatHours(grades.civics.target)}`}
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-3 text-sm text-muted-foreground">
+        <p className="min-w-0">
+          {program.total > 0 &&
+            `Dal programma ${program.total === 1 ? 'una valutazione' : `${program.total} valutazioni`}: ${
+              program.unplaced === 0 ? (program.total === 1 ? 'già messa' : 'tutte già messe') : `${program.total - program.unplaced} già messe, ${program.unplaced} da mettere`
+            }`}
+        </p>
         <Button variant="outline" size="sm" onClick={() => setNotesOpen(true)} className="max-w-full" aria-label={`Note di ${period.name} per ${course.className}`}>
           <NoteIcon />
           {note ? <span className="max-w-48 truncate">{note.split('\n')[0]}</span> : 'Note'}
@@ -164,7 +179,7 @@ function CourseSummary({ course, period }: { course: Course; period: Period }) {
   )
 }
 
-/** "· pianificato fino al 14/11, ancora 6 settimane da pianificare" */
+/** "Pianificato fino al 14/11: ancora 6 settimane da pianificare" */
 function ToPlan({ course, period }: { course: Course; period: Period }) {
   const { data } = useData()
   const now = today()
@@ -176,23 +191,25 @@ function ToPlan({ course, period }: { course: Course; period: Period }) {
   const lastBefore = planned.filter((s) => s.date < free[0].date).at(-1)
   const contiguous = !planned.some((s) => s.date > free[0].date)
   const count = weeks === 1 ? 'una settimana' : `${weeks} settimane`
-  if (contiguous && lastBefore) return <>, pianificato fino al {formatShort(lastBefore.date)}: ancora {count} da pianificare</>
-  if (contiguous) return <>, {count} da pianificare</>
-  return <>, {count} con lezioni ancora vuote</>
+  if (contiguous && lastBefore) return <>Pianificato fino al {formatShort(lastBefore.date)}: ancora {count} da pianificare</>
+  if (contiguous) return <>Ancora {count} da pianificare</>
+  return <>{count[0].toUpperCase() + count.slice(1)} con lezioni ancora vuote</>
 }
 
 function NextGradeLine({ grade }: { grade: NextGrade }) {
   const label = isMinor(grade) ? `${GRADE_LABELS[grade.type]} ${grade.weight}%` : GRADE_LABELS[grade.type]
   const about = grade.source === 'minimo' ? 'per arrivare al minimo' : [grade.about, grade.text].filter(Boolean).join(' · ')
   return (
-    <li className="flex items-start gap-2 text-sm">
-      {createElement(GRADE_ICONS[grade.type], { className: 'mt-0.5 size-4 shrink-0 text-muted-foreground' })}
+    <li className="flex items-start gap-2.5 text-sm">
+      {createElement(GRADE_ICONS[grade.type], { className: 'mt-0.5 size-5 shrink-0 text-pencil-red' })}
       <span className="min-w-0 flex-1">
-        <span className="font-medium">{label}</span>
-        {about && <span className="text-muted-foreground"> · {about}</span>}
+        <span className="font-semibold">{label}</span>
+        {about && <span className="block text-muted-foreground">{about}</span>}
       </span>
-      <span className={cn('shrink-0 text-xs', grade.date ? 'text-muted-foreground' : 'font-medium text-warn')}>
-        {grade.date ? `in calendario ${formatShort(grade.date)}` : 'da mettere'}
+      <span
+        className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs font-medium', grade.date ? 'bg-muted text-foreground' : 'bg-warn/15 font-semibold text-warn')}
+      >
+        {grade.date ? formatShort(grade.date) : 'da mettere'}
       </span>
     </li>
   )

@@ -3,8 +3,8 @@
 import { createElement, type ReactNode } from 'react'
 import { activityLabel, type Activity, type Course, courseLabel, type ProfclickData } from '@/core/model'
 import { cn } from '@/lib/utils'
-import { activityIcon } from '@/lib/activityIcons'
-import { activityTone, courseColor } from '@/lib/ui'
+import { activityIcon, GRADE_ICONS } from '@/lib/activityIcons'
+import { activityTone, courseColor, type GradeMark } from '@/lib/ui'
 
 export function CourseName({ course, className }: { course: Course; className?: string }) {
   return (
@@ -25,6 +25,23 @@ export function ActivityLine({ activity, data, dashed }: { activity: Activity; d
         <span className="font-medium">{activityLabel(activity)}</span>
         {detail && <span className="text-muted-foreground"> · {detail}</span>}
       </span>
+    </span>
+  )
+}
+
+/** Il segno di una lezione con voto: icona del tipo di prova, più piena per un orale o un pratico. */
+export function GradeBadge({ mark, iconOnly }: { mark: GradeMark; iconOnly?: boolean }) {
+  return (
+    <span
+      title={`Si mette un voto: ${mark.label.toLowerCase()}`}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 rounded-full border border-pencil-red/50 text-pencil-red',
+        mark.strong ? 'border-pencil-red bg-pencil-red/12 px-2 py-0.5 text-xs font-bold' : 'px-1.5 py-0.5 text-xs font-medium',
+        iconOnly && 'px-1',
+      )}
+    >
+      {createElement(GRADE_ICONS[mark.type], { className: mark.strong ? 'size-4' : 'size-3.5' })}
+      {iconOnly ? <span className="sr-only">{mark.label}</span> : mark.label}
     </span>
   )
 }

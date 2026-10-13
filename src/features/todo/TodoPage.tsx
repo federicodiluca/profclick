@@ -1,6 +1,6 @@
 import { createElement, useState } from 'react'
 import { Link } from 'wouter'
-import { CourseName, ProgressBar } from '@/components/bits'
+import { CourseName, GradeBadge, ProgressBar } from '@/components/bits'
 import { DoneIcon, MeetingIcon } from '@/components/icons'
 import { PencilUnderline } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import { activityIcon } from '@/lib/activityIcons'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { MeetingDialog } from '@/features/meetings/MeetingDialog'
 import { CourseFilter } from '@/features/week/CourseFilter'
-import { activityTone, courseSurface, formatHours } from '@/lib/ui'
+import { activityTone, courseSurface, formatHours, gradeMark } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 import { ListSection } from '@/components/ListSection'
@@ -204,8 +204,8 @@ function TodoGroup({
   return (
     <section className="space-y-2">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <span className="flex items-center gap-2 text-xs text-muted-foreground">
+        <h3 className="text-base font-semibold">{title}</h3>
+        <span className="flex items-center gap-2 text-sm text-muted-foreground">
           {ready === items.length ? 'tutto pronto' : `${ready} di ${items.length} pronte`}
           {items.filter((t) => !isFollowUp(t)).length > 1 && (
             <Button variant="ghost" size="sm" onClick={onMarkAll} className="h-7 px-2 text-xs text-primary">
@@ -215,7 +215,7 @@ function TodoGroup({
         </span>
       </div>
       <ProgressBar value={ready} max={items.length} />
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
       <TodoList items={items} now={now} compact={compact} onOpen={onOpen} />
     </section>
   )
@@ -278,14 +278,15 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
   const main = activities.find((a) => a.kind === 'verifica') ?? activities[0]
   const topics = [...new Set(activities.flatMap((a) => a.topicIds))].map((id) => data.topics[id]?.title).filter(Boolean).join(', ')
   const labels = list.map((t) => (t.source.kind === 'activity' ? stepLabel(t.source.step.key, t.source.activity) : ''))
+  const mark = gradeMark(activities)
   const checks = list.map((todo, i) => {
     if (todo.source.kind !== 'activity') return null
     const activity = todo.source.activity
     // Lo stesso passo per due attività ("Materiale"): si dice di quale.
     const text = labels.indexOf(labels[i]) !== labels.lastIndexOf(labels[i]) ? `${labels[i]} (${activityLabel(activity).toLowerCase()})` : labels[i]
     return (
-      <label key={todo.id} className="flex shrink-0 cursor-pointer items-center gap-1.5 text-sm">
-        <input type="checkbox" checked={todo.done} onChange={() => apply(toggleTodo(todo))} className="size-4 shrink-0 accent-[var(--done)]" />
+      <label key={todo.id} className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
+        <input type="checkbox" checked={todo.done} onChange={() => apply(toggleTodo(todo))} className="size-[18px] shrink-0 accent-[var(--done)]" />
         <span className={cn(todo.done && 'text-muted-foreground line-through')}>{text}</span>
       </label>
     )
@@ -293,9 +294,10 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
   if (compact) {
     // Una riga: la classe, l'attività, quando, e le spunte.
     return (
-      <li style={courseSurface(s.course, { tint: false })} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 pl-4">
+      <li style={courseSurface(s.course, { tint: false })} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 pl-4">
         <button type="button" onClick={onOpen} className={cn('flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm', allDone && 'opacity-60')}>
-          <span className="shrink-0 font-medium">{s.course.className}</span>
+          <span className="shrink-0 font-semibold">{s.course.className}</span>
+          {mark && <GradeBadge mark={mark} iconOnly />}
           <span className="min-w-0 truncate text-muted-foreground">
             {label}
             {when && ` · ${when}`}
@@ -306,16 +308,17 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
     )
   }
   return (
-    <li style={courseSurface(s.course, { tint: false })} className="space-y-1.5 px-3 py-2.5 pl-4">
+    <li style={courseSurface(s.course, { tint: false })} className={cn('space-y-2 px-3 py-3 pl-4', mark?.strong && 'bg-pencil-red/5')}>
       <button type="button" onClick={onOpen} className={cn('block w-full min-w-0 text-left', allDone && 'opacity-60')}>
-        <span className="flex min-w-0 items-start gap-1.5 text-sm">
-          {createElement(activityIcon(main), { className: cn('mt-0.5 size-4 shrink-0', activityTone(main)) })}
-          <span className="min-w-0">
-            <span className="font-medium">{label}</span>
+        <span className="flex min-w-0 items-start gap-2 text-base">
+          {createElement(activityIcon(main), { className: cn('mt-1 size-4 shrink-0', activityTone(main)) })}
+          <span className="min-w-0 flex-1">
+            <span className="font-semibold">{label}</span>
             {topics && <span className="text-muted-foreground"> · {topics}</span>}
           </span>
+          {mark && <GradeBadge mark={mark} />}
         </span>
-        <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
           <CourseName course={s.course} />
           {when && <span>· {when}</span>}
           {/* Quanto dura la lezione: cambia quanto materiale serve. */}
@@ -337,8 +340,8 @@ function TodoRow({ todo, now, compact, onOpen }: { todo: Todo; now: ISODate; com
 
   const body = (
     <>
-      <span className="block text-sm font-medium">{s.item.text}</span>
-      <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+      <span className="block text-base font-medium">{s.item.text}</span>
+      <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
         {s.kind === 'meeting' ? (
           <span className="inline-flex items-center gap-1.5">
             <MeetingIcon className="size-3.5" /> {meetingLabel(s.meeting)}
@@ -366,13 +369,13 @@ function TodoRow({ todo, now, compact, onOpen }: { todo: Todo; now: ISODate; com
   return (
     <li
       style={s.kind === 'meeting' ? undefined : courseSurface(s.course, { tint: false })}
-      className={cn('flex gap-3 px-3 pl-4', compact ? 'items-center py-1.5' : 'items-start py-2.5')}
+      className={cn('flex gap-3 px-3 pl-4', compact ? 'items-center py-2' : 'items-start py-3')}
     >
       <input
         type="checkbox"
         checked={todo.done}
         onChange={toggle}
-        className={cn('size-4 shrink-0 accent-[var(--done)]', !compact && 'mt-0.5')}
+        className={cn('size-[18px] shrink-0 accent-[var(--done)]', !compact && 'mt-1')}
         aria-label={todo.done ? 'Pronto: tocca per annullare' : 'Segna come pronto'}
       />
       {s.kind === 'prep' ? (

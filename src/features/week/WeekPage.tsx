@@ -1,7 +1,7 @@
 import { createElement, useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
-import { ActivityLine, CourseName } from '@/components/bits'
-import { activityTone, courseSurface, formatHours } from '@/lib/ui'
+import { ActivityLine, CourseName, GradeBadge } from '@/components/bits'
+import { activityTone, courseSurface, formatHours, gradeMark } from '@/lib/ui'
 import { CalendarAddIcon, CancelledIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
 import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
@@ -300,6 +300,7 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
   const done = isDone(lesson)
   const auto = isAutoDone(lesson)
   const planned = (lesson?.activities.length ?? 0) > 0
+  const mark = planned ? gradeMark(lesson!.activities) : null
 
   if (lesson?.cancelled) {
     return (
@@ -352,6 +353,7 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
         className={cn(
           'flex items-center gap-2 rounded-lg border py-1 pr-1.5 pl-3.5 transition-colors',
           planned ? 'bg-card shadow-xs' : past ? 'bg-card/60' : 'border-dashed border-muted-foreground/30 bg-transparent hover:bg-muted/40',
+          mark?.border,
         )}
       >
         <button type="button" onClick={onOpen} className="flex min-h-7 min-w-0 flex-1 items-center gap-2 text-left text-sm">
@@ -371,6 +373,7 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
             {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
             {slot.lab && ' · ITP'}
           </span>
+          {mark && <GradeBadge mark={mark} iconOnly={!mark.strong} />}
         </button>
         {prepButton}
         {doneButton}
@@ -387,16 +390,20 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
         // Una lezione passata senza niente segnato non è un problema: è andata, e basta.
         planned ? 'bg-card shadow-xs' : past ? 'bg-card/60' : 'border-dashed border-muted-foreground/30 bg-transparent hover:bg-muted/40',
         done && 'bg-card/60',
+        mark?.border,
       )}
     >
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1.5 text-left">
         <div className="flex items-center justify-between gap-2 text-sm font-semibold">
           <CourseName course={course} />
-          <span className="shrink-0 text-xs font-normal text-muted-foreground">
-            {slot.floating && `Lezione ${slot.index} · `}
-            {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
-            {slot.lab && ' · ITP'}
-            {slot.extra && ' · in più'}
+          <span className="flex shrink-0 items-center gap-2">
+            <span className="text-xs font-normal text-muted-foreground">
+              {slot.floating && `Lezione ${slot.index} · `}
+              {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
+              {slot.lab && ' · ITP'}
+              {slot.extra && ' · in più'}
+            </span>
+            {mark && <GradeBadge mark={mark} />}
           </span>
         </div>
         {planned ? (
