@@ -1,7 +1,7 @@
 // Funzioni di presentazione condivise dai componenti.
 
 import type { CSSProperties } from 'react'
-import { type Activity, type Course, GRADE_LABELS, type GradeType, isMinor } from '@/core/model'
+import { type Activity, type Course, GRADE_LABELS, isMinor } from '@/core/model'
 
 export const COURSE_COLORS = 8
 
@@ -16,9 +16,10 @@ export function courseColor(course: Pick<Course, 'color'>): string {
 export function courseSurface(course: Pick<Course, 'color'>, { tint = true }: { tint?: boolean } = {}): CSSProperties {
   const color = courseColor(course)
   return {
+    '--course': color,
     boxShadow: `inset 4px 0 0 ${color}`,
     ...(tint && { background: `color-mix(in oklab, ${color} var(--course-tint), var(--card))` }),
-  }
+  } as CSSProperties
 }
 
 /** Le valutazioni in rosso, il resto in blu: come la matita del docente. */
@@ -27,13 +28,15 @@ export function activityTone(activity: Activity): string {
 }
 
 /**
- * Una lezione in cui si mette un voto: contorno rosso e icona del tipo di prova, uguali per
- * tutte le prove. Il doppio contorno dice che c'è ancora qualcosa da preparare.
+ * Una lezione in cui si mette un voto: contorno nel colore della materia e la coccarda dei voti.
+ * Finché c'è qualcosa da preparare per la prova il contorno lampeggia e al posto della coccarda
+ * c'è l'avviso giallo (GradeSign); poi resta fermo.
  */
 export interface GradeMark {
-  type: GradeType
   /** "Orale", "Pratico", "Scritto 50%". */
   label: string
+  /** Resta da preparare qualcosa della prova. */
+  toPrepare: boolean
   /** Contorno della scheda. */
   border: string
 }
@@ -44,9 +47,9 @@ export function gradeMark(activities: Activity[], toPrepare = false): GradeMark 
   // Se ce n'è più d'una, vale la più impegnativa.
   const pick = graded.find((a) => a.type !== 'scritto' && !isMinor(a)) ?? graded.find((a) => !isMinor(a)) ?? graded[0]
   return {
-    type: pick.type,
     label: isMinor(pick) ? `${GRADE_LABELS[pick.type]} ${pick.weight}%` : GRADE_LABELS[pick.type],
-    border: toPrepare ? 'grade-edge grade-edge-double' : 'grade-edge',
+    toPrepare,
+    border: toPrepare ? 'grade-edge grade-edge-live' : 'grade-edge',
   }
 }
 

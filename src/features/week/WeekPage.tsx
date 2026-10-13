@@ -1,6 +1,6 @@
 import { createElement, useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
-import { ActivityLine, CourseName, GradeBadge } from '@/components/bits'
+import { ActivityLine, CourseName, GradeSign } from '@/components/bits'
 import { activityTone, courseSurface, formatHours, gradeMark } from '@/lib/ui'
 import { CalendarAddIcon, CancelledIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, DoneIcon, PlusIcon, PrepIcon, RegisterIcon } from '@/components/icons'
 import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
@@ -300,7 +300,8 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
   const done = isDone(lesson)
   const auto = isAutoDone(lesson)
   const planned = (lesson?.activities.length ?? 0) > 0
-  const toPrepare = planned && !done && slot.date >= today() && lesson!.activities.some((a) => activitySteps(a).some((s) => !isAfter(s.key) && !s.done))
+  // Conta solo la preparazione della prova: il resto del blocco orario ha il suo segno a parte.
+  const toPrepare = planned && !done && slot.date >= today() && lesson!.activities.some((a) => a.kind === 'verifica' && a.assessment && activitySteps(a).some((s) => !isAfter(s.key) && !s.done))
   const mark = planned ? gradeMark(lesson!.activities, toPrepare) : null
 
   if (lesson?.cancelled) {
@@ -357,6 +358,7 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
           mark?.border,
         )}
       >
+        {mark && <GradeSign mark={mark} />}
         <button type="button" onClick={onOpen} className="flex min-h-7 min-w-0 flex-1 items-center gap-2 text-left text-sm">
           <span className="shrink-0 font-semibold">{course.className}</span>
           {planned ? (
@@ -374,7 +376,6 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
             {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
             {slot.lab && ' · ITP'}
           </span>
-          {mark && <GradeBadge mark={mark} iconOnly />}
         </button>
         {prepButton}
         {doneButton}
@@ -394,17 +395,15 @@ function LessonCard({ slot, past, compact, onOpen, onToggleDone }: { slot: Lesso
         mark?.border,
       )}
     >
+      {mark && <GradeSign mark={mark} />}
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1.5 text-left">
         <div className="flex items-center justify-between gap-2 text-sm font-semibold">
           <CourseName course={course} />
-          <span className="flex shrink-0 items-center gap-2">
-            <span className="text-xs font-normal text-muted-foreground">
-              {slot.floating && `Lezione ${slot.index} · `}
-              {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
-              {slot.lab && ' · ITP'}
-              {slot.extra && ' · in più'}
-            </span>
-            {mark && <GradeBadge mark={mark} />}
+          <span className="shrink-0 text-xs font-normal text-muted-foreground">
+            {slot.floating && `Lezione ${slot.index} · `}
+            {slot.start ? schoolHours(slot.start, slot.hours) : formatHours(slot.hours)}
+            {slot.lab && ' · ITP'}
+            {slot.extra && ' · in più'}
           </span>
         </div>
         {planned ? (

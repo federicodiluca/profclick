@@ -1,6 +1,6 @@
 import { createElement, useState } from 'react'
 import { Link } from 'wouter'
-import { CourseName, GradeBadge, ProgressBar } from '@/components/bits'
+import { CourseName, GradeSign, ProgressBar } from '@/components/bits'
 import { DoneIcon, MeetingIcon } from '@/components/icons'
 import { PencilUnderline } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
@@ -278,7 +278,7 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
   const main = activities.find((a) => a.kind === 'verifica') ?? activities[0]
   const topics = [...new Set(activities.flatMap((a) => a.topicIds))].map((id) => data.topics[id]?.title).filter(Boolean).join(', ')
   const labels = list.map((t) => (t.source.kind === 'activity' ? stepLabel(t.source.step.key, t.source.activity) : ''))
-  const mark = gradeMark(activities, list.some((t) => !t.done && t.source.kind === 'activity' && !isAfter(t.source.step.key)))
+  const mark = gradeMark(activities, list.some((t) => !t.done && t.source.kind === 'activity' && t.source.activity.kind === 'verifica' && !isAfter(t.source.step.key)))
   const checks = list.map((todo, i) => {
     if (todo.source.kind !== 'activity') return null
     const activity = todo.source.activity
@@ -297,7 +297,7 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
       <li style={courseSurface(s.course, { tint: false })} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 pl-4">
         <button type="button" onClick={onOpen} className={cn('flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm', allDone && 'opacity-60')}>
           <span className="shrink-0 font-semibold">{s.course.className}</span>
-          {mark && <GradeBadge mark={mark} iconOnly />}
+          {mark && <GradeSign mark={mark} inline />}
           <span className="min-w-0 truncate text-muted-foreground">
             {label}
             {when && ` · ${when}`}
@@ -316,7 +316,7 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
             <span className="font-semibold">{label}</span>
             {topics && <span className="text-muted-foreground"> · {topics}</span>}
           </span>
-          {mark && <GradeBadge mark={mark} />}
+          {mark && <GradeSign mark={mark} inline />}
         </span>
         <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
           <CourseName course={s.course} />

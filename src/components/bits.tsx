@@ -2,8 +2,9 @@
 
 import { createElement, type ReactNode } from 'react'
 import { activityLabel, type Activity, type Course, courseLabel, type ProfclickData } from '@/core/model'
+import { AlertIcon, GradesIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
-import { activityIcon, GRADE_ICONS } from '@/lib/activityIcons'
+import { activityIcon } from '@/lib/activityIcons'
 import { activityTone, courseColor, type GradeMark } from '@/lib/ui'
 
 export function CourseName({ course, className }: { course: Course; className?: string }) {
@@ -29,15 +30,27 @@ export function ActivityLine({ activity, data, dashed }: { activity: Activity; d
   )
 }
 
-/** Il segno di una lezione con voto: icona del tipo di prova, più piena per un orale o un pratico. */
-export function GradeBadge({ mark, iconOnly }: { mark: GradeMark; iconOnly?: boolean }) {
+/**
+ * Il segno di una lezione con voto, in un posto solo: l'avviso giallo (che lampeggia) finché c'è
+ * da preparare per la prova, poi la coccarda dei voti, su un giallo tenue. Il tipo di prova lo
+ * dice già il testo della lezione. Sulle schede sta a cavallo del bordo sinistro, a metà; nelle
+ * righe di una lista (inline) accanto al titolo, dove il bordo sarebbe tagliato.
+ */
+export function GradeSign({ mark, inline }: { mark: GradeMark; inline?: boolean }) {
+  const label = mark.toPrepare ? 'Da preparare per la prova' : `Si mette un voto: ${mark.label.toLowerCase()}`
   return (
     <span
-      title={`Si mette un voto: ${mark.label.toLowerCase()}`}
-      className={cn('inline-flex shrink-0 items-center gap-1 rounded-full border border-pencil-red/50 px-1.5 py-0.5 text-xs font-medium text-pencil-red', iconOnly && 'px-1')}
+      role="img"
+      aria-label={label}
+      title={label}
+      className={cn(
+        'grid size-6 shrink-0 place-items-center rounded-full',
+        mark.toPrepare ? 'grade-warn bg-[var(--grade-yellow)] text-black/80' : 'bg-[var(--grade-yellow-soft)] text-[var(--grade-yellow-ink)]',
+        // Da solo nella riga lampeggia per conto suo; sulla scheda segue il bordo.
+        inline ? mark.toPrepare && 'grade-pulse' : 'pointer-events-none absolute top-1/2 -left-3 z-10 -translate-y-1/2 shadow-sm ring-2 ring-background',
+      )}
     >
-      {createElement(GRADE_ICONS[mark.type], { className: 'size-3.5' })}
-      {iconOnly ? <span className="sr-only">{mark.label}</span> : mark.label}
+      {mark.toPrepare ? <AlertIcon className="size-3.5" /> : <GradesIcon className="size-4" />}
     </span>
   )
 }
