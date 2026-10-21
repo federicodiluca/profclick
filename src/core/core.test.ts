@@ -349,6 +349,14 @@ describe('prossimi voti', () => {
     expect(weekToShow(withSaturday, '2026-10-04')).toBe('2026-10-05')
   })
 
+  it("con un'ora, la settimana dopo arriva la sera dell'ultimo giorno di scuola", () => {
+    const evening = { time: '19:00' }
+    expect(weekToShow(base(), '2026-10-02', '18:59', evening)).toBe('2026-09-28')
+    expect(weekToShow(base(), '2026-10-02', '19:00', evening)).toBe('2026-10-05')
+    // Un giorno forzato vale anche contro l'orario.
+    expect(weekToShow(base(), '2026-10-01', '19:00', { day: 4, time: '19:00' })).toBe('2026-10-05')
+  })
+
   it('le settimane di scuola non contano quelle tutte di vacanza', () => {
     const year = defaultSchoolYear(2026)
     const weeks = schoolWeeks(year, year.periods[0])

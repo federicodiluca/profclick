@@ -10,6 +10,7 @@ import type { ListMode } from '@/state/listMode'
 export function ListSection({
   title,
   count,
+  badge,
   extra,
   mode,
   onMode,
@@ -20,6 +21,8 @@ export function ListSection({
   title: ReactNode
   /** Quante voci, mostrato accanto al titolo quando la lista è chiusa. */
   count?: number
+  /** Quante voci restano da fare: un numerino sempre accanto al titolo, come sul tab; al posto di `count`. */
+  badge?: number
   /** Altro a destra del titolo: avanzamento, pulsanti. */
   extra?: ReactNode
   mode: ListMode
@@ -37,7 +40,13 @@ export function ListSection({
           <button type="button" onClick={onToggleOpen} aria-expanded={!closed} className="inline-flex items-center gap-1.5 hover:text-primary">
             {closed ? <ChevronRightIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
             {title}
-            {closed && count !== undefined && <span className="text-sm font-normal text-muted-foreground">· {count}</span>}
+            {badge !== undefined
+              ? badge > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-xs leading-none font-semibold text-primary-foreground tabular-nums">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )
+              : closed && count !== undefined && <span className="text-sm font-normal text-muted-foreground">· {count}</span>}
           </button>
         </Heading>
         <div className="flex items-center gap-2">

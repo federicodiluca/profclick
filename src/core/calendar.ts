@@ -176,7 +176,21 @@ export function lastSchoolDay(data: ProfclickData): number {
   return days.length ? Math.max(5, ...days) : 6
 }
 
-/** La settimana da mostrare a una data: finita la scuola della settimana, quella dopo. */
-export function weekToShow(data: ProfclickData, date: ISODate): ISODate {
-  return startOfWeek(weekday(date) > lastSchoolDay(data) ? addDays(date, 7) : date)
+/**
+ * Da quando si guarda alla settimana dopo: il giorno (1 lunedì … 7 domenica; senza, l'ultimo
+ * giorno di scuola dall'orario) e l'ora, "HH:MM". "24:00" vuol dire finito quel giorno.
+ */
+export interface WeekSwitch {
+  day?: number
+  time: string
+}
+
+/**
+ * La settimana da mostrare a una data e un'ora: finita la scuola della settimana, quella dopo.
+ * Senza ora, conta la fine della giornata.
+ */
+export function weekToShow(data: ProfclickData, date: ISODate, time = '00:00', from: WeekSwitch = { time: '24:00' }): ISODate {
+  const day = from.day ?? lastSchoolDay(data)
+  const next = weekday(date) > day || (weekday(date) === day && time >= from.time)
+  return startOfWeek(next ? addDays(date, 7) : date)
 }

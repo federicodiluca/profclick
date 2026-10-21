@@ -25,6 +25,12 @@ export function today(): ISODate {
   return isoDate(now.getFullYear(), now.getMonth() + 1, now.getDate())
 }
 
+/** L'ora di adesso, "HH:MM". */
+export function nowTime(): string {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
 export function addDays(date: ISODate, days: number): ISODate {
   return fromUtc(toUtc(date) + days * DAY_MS)
 }

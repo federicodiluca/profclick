@@ -7,6 +7,7 @@ import { ThemeButton } from '@/components/ThemeButton'
 import { addDays, today } from '@/core/dates'
 import { isLater, todos } from '@/core/todo'
 import { cn } from '@/lib/utils'
+import { currentWeek } from '@/lib/week'
 import { useData } from '@/state/data'
 
 function NavLink({ to, icon: Icon, badge, children }: { to: string; icon: IconComponent; badge?: number; children: ReactNode }) {
@@ -37,9 +38,10 @@ export function Layout({ children }: { children: ReactNode }) {
   // Prima di scegliere l'anno scolastico c'è solo il benvenuto: le sezioni non servono ancora.
   const { data } = useData()
   const ready = data.year !== null
-  // Sul tab Da fare, quante cose servono nei prossimi sette giorni e non sono ancora pronte.
+  // Sul tab Da fare, quante cose non sono ancora pronte per la settimana mostrata (dal venerdì
+  // sera la prossima), più quelle ancora da chiudere.
   const now = today()
-  const dueSoon = ready ? todos(data, now, addDays(now, 6)).filter((t) => t.due && !t.done && !isLater(t, now)).length : 0
+  const dueSoon = ready ? todos(data, now, addDays(currentWeek(data), 6)).filter((t) => t.due && !t.done && !isLater(t, now)).length : 0
   const nav = (
     <>
       <NavLink to="/" icon={WeekIcon}>

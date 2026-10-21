@@ -83,6 +83,13 @@ VITE_GOOGLE_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
 
 Senza Client ID l'app funziona solo sul dispositivo e il pulsante di Google non compare.
 
+Da quando Settimana, Da fare e Orario passano alla settimana dopo (facoltativo):
+
+```bash
+VITE_NEXT_WEEK_TIME=19:00   # l'ora, l'ultimo giorno di scuola (default 19:00)
+VITE_NEXT_WEEK_DAY=5        # il giorno, 1 lunedì … 7 domenica (default: dall'orario)
+```
+
 ```text
 index.html      landing pubblica (statica, indicizzabile)
 app/index.html  l'app (PWA, noindex)

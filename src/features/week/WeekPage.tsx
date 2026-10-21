@@ -7,7 +7,7 @@ import { PencilCircle, PencilStrike, PencilTick } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
 import { setActivityReady, setDone } from '@/core/actions'
 import { activitySteps, isAfter } from '@/core/steps'
-import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses, weekToShow } from '@/core/calendar'
+import { floatingSlotsOfWeek, holidayOn, type LessonSlot, slotsOn, sortedCourses } from '@/core/calendar'
 import { addDays, formatLong, formatRange, type ISODate, today, weekday } from '@/core/dates'
 import { meetingsOn } from '@/core/meetings'
 import { lessonRegisterText } from '@/core/registerText'
@@ -19,6 +19,7 @@ import { MeetingDialog } from '@/features/meetings/MeetingDialog'
 import { MeetingCard } from '@/features/meetings/MeetingsPage'
 import { cn } from '@/lib/utils'
 import { activityLabel, isAutoDone, isDone } from '@/core/model'
+import { currentWeek } from '@/lib/week'
 import { useData } from '@/state/data'
 import { ListModeToggle } from '@/components/ListSection'
 import { useClosedDays, useListMode } from '@/state/listMode'
@@ -31,7 +32,7 @@ export default function WeekPage() {
   const { data, apply } = useData()
   const now = today()
   // Finita la scuola della settimana (il sabato, se non c'è lezione) si guarda già a quella che arriva.
-  const [monday, setMonday] = useState(() => weekToShow(data, now))
+  const [monday, setMonday] = useState(() => currentWeek(data))
   const [open, setOpen] = useState<{ courseId: string; date: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [meetingOpen, setMeetingOpen] = useState<string | null>(null)
@@ -44,7 +45,7 @@ export default function WeekPage() {
   const compact = view.mode === 'compatta'
   const closedDays = useClosedDays(now)
   const shown = (slot: LessonSlot) => !hidden.has(slot.courseId)
-  const thisWeek = monday === weekToShow(data, now)
+  const thisWeek = monday === currentWeek(data)
 
   const days = Array.from({ length: 6 }, (_, i) => addDays(monday, i)).map((date) => {
     const all = slotsOn(data, date)
@@ -107,7 +108,7 @@ export default function WeekPage() {
           <Button variant="outline" size="icon" aria-label="Settimana precedente" onClick={() => setMonday(addDays(monday, -7))}>
             <ChevronLeftIcon />
           </Button>
-          <Button variant="outline" onClick={() => setMonday(weekToShow(data, now))} disabled={thisWeek}>
+          <Button variant="outline" onClick={() => setMonday(currentWeek(data))} disabled={thisWeek}>
             Oggi
           </Button>
           <Button variant="outline" size="icon" aria-label="Settimana successiva" onClick={() => setMonday(addDays(monday, 7))}>

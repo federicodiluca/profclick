@@ -26,6 +26,10 @@
 - La settimana da mostrare (Settimana, Da fare, Orario) passa alla successiva **quando la scuola
   della settimana è finita**. L'ultimo giorno di scuola si ricava dall'orario: il sabato se qualche
   classe ha lezione il sabato, altrimenti il venerdì. Senza un'impostazione da ricordare.
+  Aggiornamento: il cambio arriva già la sera di quell'ultimo giorno, dalle 19:00, quando la
+  scuola è finita e si comincia a pensare alla settimana dopo. L'ora (`VITE_NEXT_WEEK_TIME`) e,
+  se serve, il giorno (`VITE_NEXT_WEEK_DAY`, 1 lunedì … 7 domenica) si cambiano da `.env`. Il
+  numerino sul tab Da fare conta su quella stessa settimana, più quello ancora da chiudere.
 
 ## Alternative scartate
 

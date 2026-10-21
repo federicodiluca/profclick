@@ -2,12 +2,12 @@ import { type CSSProperties, useState } from 'react'
 import { Link } from 'wouter'
 import { ChevronLeftIcon, ChevronRightIcon, PrintIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { addDays, formatRange, today, weekdayName } from '@/core/dates'
-import { weekToShow } from '@/core/calendar'
+import { addDays, formatRange, weekdayName } from '@/core/dates'
 import { cellKey, type TimetableEntry, timetable } from '@/core/timetable'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { courseColor, formatHours } from '@/lib/ui'
 import { cn } from '@/lib/utils'
+import { currentWeek } from '@/lib/week'
 import { useData } from '@/state/data'
 
 /**
@@ -16,10 +16,9 @@ import { useData } from '@/state/data'
  */
 export default function TimetablePage() {
   const { data } = useData()
-  const now = today()
-  const [monday, setMonday] = useState(() => weekToShow(data, now))
+  const [monday, setMonday] = useState(() => currentWeek(data))
   const [open, setOpen] = useState<TimetableEntry | null>(null)
-  const thisWeek = monday === weekToShow(data, now)
+  const thisWeek = monday === currentWeek(data)
   const t = timetable(data, monday)
   const hours = Array.from({ length: t.rows }, (_, i) => i + 1)
   const hasUnplaced = t.unplaced.size > 0
@@ -50,7 +49,7 @@ export default function TimetablePage() {
           <Button variant="outline" size="icon" aria-label="Settimana precedente" onClick={() => setMonday(addDays(monday, -7))}>
             <ChevronLeftIcon />
           </Button>
-          <Button variant="outline" onClick={() => setMonday(weekToShow(data, now))} disabled={thisWeek}>
+          <Button variant="outline" onClick={() => setMonday(currentWeek(data))} disabled={thisWeek}>
             Oggi
           </Button>
           <Button variant="outline" size="icon" aria-label="Settimana successiva" onClick={() => setMonday(addDays(monday, 7))}>

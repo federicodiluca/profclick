@@ -4,7 +4,7 @@ import { CourseName, GradeSign, ProgressBar } from '@/components/bits'
 import { DoneIcon, MeetingIcon } from '@/components/icons'
 import { PencilUnderline } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
-import { sortedCourses, weekToShow } from '@/core/calendar'
+import { sortedCourses } from '@/core/calendar'
 import { addDays, formatDay, formatShort, type ISODate, startOfWeek, today } from '@/core/dates'
 import { activityLabel, meetingLabel } from '@/core/model'
 import { isAfter, stepLabel } from '@/core/steps'
@@ -15,6 +15,7 @@ import { MeetingDialog } from '@/features/meetings/MeetingDialog'
 import { CourseFilter } from '@/features/week/CourseFilter'
 import { activityTone, courseSurface, formatHours, gradeMark } from '@/lib/ui'
 import { cn } from '@/lib/utils'
+import { currentWeek } from '@/lib/week'
 import { useData } from '@/state/data'
 import { ListSection } from '@/components/ListSection'
 import { useListMode } from '@/state/listMode'
@@ -36,7 +37,7 @@ export default function TodoPage() {
   const { hidden, toggle, showAll } = useHiddenCourses()
   const courses = sortedCourses(data)
   // Come nella settimana: finita la scuola della settimana si guarda già a quella che arriva.
-  const monday = weekToShow(data, now)
+  const monday = currentWeek(data)
   const until = addDays(monday, weeks * 7 - 1)
   const list = todos(data, now, until).filter((t) => !hidden.has(todoFilterKey(t)))
   const yearEnded = !data.year || until >= data.year.end
@@ -113,7 +114,7 @@ export default function TodoPage() {
           {after.length > 0 && (
             <ListSection
               title="Da chiudere"
-              count={after.filter((t) => !t.done).length}
+              badge={after.filter((t) => !t.done).length}
               extra={<span className="hidden text-xs text-muted-foreground sm:inline">dopo lezioni e riunioni già fatte</span>}
               mode={afterMode.mode}
               onMode={afterMode.setMode}
@@ -125,7 +126,7 @@ export default function TodoPage() {
           {before.length > 0 && (
             <ListSection
               title="Da preparare"
-              count={before.filter((t) => !t.done).length}
+              badge={before.filter((t) => !t.done).length}
               mode={beforeMode.mode}
               onMode={beforeMode.setMode}
               onToggleOpen={beforeMode.toggleOpen}
@@ -159,7 +160,7 @@ export default function TodoPage() {
           {later.length > 0 && (
             <ListSection
               title="A cose fatte"
-              count={later.filter((t) => !t.done).length}
+              badge={later.filter((t) => !t.done).length}
               extra={<span className="hidden text-xs text-muted-foreground sm:inline">dopo le prossime verifiche e riunioni</span>}
               mode={laterMode.mode}
               onMode={laterMode.setMode}
