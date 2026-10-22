@@ -21,7 +21,7 @@ import type { ProgramTextInput } from '@/core/programText'
 import { ProgramTextDialog } from '@/features/course/ProgramTextDialog'
 import { allAssessments, allMeetings, toIcs } from '@/core/calendarExport'
 import { addDays, formatDay, today } from '@/core/dates'
-import { normalizeData, type SchoolYear } from '@/core/model'
+import { type Holiday, normalizeData, type SchoolYear } from '@/core/model'
 import { PERIOD_PRESETS, type PeriodPreset, presetPeriods } from '@/core/schoolYear'
 import { newId } from '@/lib/id'
 import { cn } from '@/lib/utils'
@@ -83,37 +83,7 @@ export default function YearPage() {
         </div>
       </Section>
 
-      <Section
-        title="Vacanze e festività"
-        action={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => update({ holidays: [...year.holidays, { id: newId(), name: 'Ponte', from: year.start, to: year.start }] })}
-          >
-            <PlusIcon /> Aggiungi
-          </Button>
-        }
-      >
-        <p className="text-sm text-muted-foreground">
-          Ci sono già le festività nazionali. Controlla le date con il calendario della tua regione e aggiungi quelle della tua scuola, come il santo
-          patrono e i ponti: nei giorni qui sotto non ci sono lezioni.
-        </p>
-        <div className="space-y-2">
-          {[...year.holidays]
-            .sort((a, b) => (a.from < b.from ? -1 : 1))
-            .map((h) => (
-              <div key={h.id} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 border-b pb-3 last:border-0 sm:grid-cols-[1fr_auto_auto_auto] sm:border-0 sm:pb-0">
-                <TextField className="col-span-3 sm:col-span-1" label="Nome" value={h.name} onChange={(name) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, name } : x)) })} />
-                <DateField label="Dal" value={h.from} onChange={(from) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, from, to: x.to < from ? from : x.to } : x)) })} />
-                <DateField label="Al" value={h.to} onChange={(to) => update({ holidays: year.holidays.map((x) => (x.id === h.id ? { ...x, to } : x)) })} />
-                <Button variant="ghost" size="icon" aria-label={`Togli ${h.name}`} onClick={() => applyWithUndo(setYear({ ...year, holidays: year.holidays.filter((x) => x.id !== h.id) }), `Tolto dal calendario: ${h.name}`)}>
-                  <TrashIcon />
-                </Button>
-              </div>
-            ))}
-        </div>
-      </Section>
+      <HolidaysSection />
 
       {ending && !over && <NewYearSection />}
 
@@ -150,6 +120,74 @@ export default function YearPage() {
   )
 }
 
+/**
+ * Le festività stanno sempre in ordine di data, ma mentre ne modifichi una la lista resta ferma: si riordina quando esci dalla lista,
+ * così la riga non salta via mentre scrivi la data. Quella nuova compare in cima, pronta da compilare.
+ */
+function HolidaysSection() {
+  const { data, apply, applyWithUndo } = useData()
+  const year = data.year!
+  const [frozen, setFrozen] = useState<string[] | null>(null)
+  const [added, setAdded] = useState<string | null>(null)
+  const edit = (id: string, patch: (h: Holiday) => Holiday) => apply(setYear({ ...year, holidays: year.holidays.map((x) => (x.id === id ? patch(x) : x)) }))
+
+  const sorted = [...year.holidays].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : a.name.localeCompare(b.name)))
+  const byId = new Map(year.holidays.map((h) => [h.id, h]))
+  const shown = frozen
+    ? [...sorted.filter((h) => !frozen.includes(h.id)), ...frozen.flatMap((id) => byId.get(id) ?? [])]
+    : sorted
+
+  const add = () => {
+    const id = newId()
+    const day = today() >= year.start && today() <= year.end ? today() : year.start
+    // In cima finché la stai compilando.
+    setFrozen([id, ...sorted.map((h) => h.id)])
+    setAdded(id)
+    apply(setYear({ ...year, holidays: [...year.holidays, { id, name: 'Ponte', from: day, to: day }] }))
+  }
+
+  return (
+    <Section
+      title="Vacanze e festività"
+      action={
+        <Button variant="outline" size="sm" onClick={add}>
+          <PlusIcon /> Aggiungi
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        Ci sono già le festività nazionali. Controlla le date con il calendario della tua regione e aggiungi quelle della tua scuola, come il santo
+        patrono e i ponti: nei giorni qui sotto non ci sono lezioni. Si mettono in ordine da sole.
+      </p>
+      <div
+        className="space-y-2"
+        onFocus={() => setFrozen((f) => f ?? shown.map((h) => h.id))}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFrozen(null)
+        }}
+      >
+        {shown.map((h) => (
+          <div key={h.id} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 border-b pb-3 last:border-0 sm:grid-cols-[1fr_auto_auto_auto] sm:border-0 sm:pb-0">
+            <TextField
+              className="col-span-3 sm:col-span-1"
+              label="Nome"
+              value={h.name}
+              autoFocus={h.id === added}
+              onFocus={() => setAdded(null)}
+              onChange={(name) => edit(h.id, (x) => ({ ...x, name }))}
+            />
+            <DateField label="Dal" value={h.from} onChange={(from) => edit(h.id, (x) => ({ ...x, from, to: x.to < from ? from : x.to }))} />
+            <DateField label="Al" value={h.to} onChange={(to) => edit(h.id, (x) => ({ ...x, to, from: x.from > to ? to : x.from }))} />
+            <Button variant="ghost" size="icon" aria-label={`Togli ${h.name}`} onClick={() => applyWithUndo(setYear({ ...year, holidays: year.holidays.filter((x) => x.id !== h.id) }), `Tolto dal calendario: ${h.name}`)}>
+              <TrashIcon />
+            </Button>
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
@@ -159,11 +197,28 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
   )
 }
 
-function TextField({ label, value, onChange, className }: { label: string; value: string; onChange: (v: string) => void; className?: string }) {
+function TextField({
+  label,
+  value,
+  onChange,
+  className,
+  autoFocus,
+  onFocus,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  className?: string
+  autoFocus?: boolean
+  onFocus?: () => void
+}) {
   return (
     <label className={cn('grid min-w-0 gap-1 text-xs text-muted-foreground', className)}>
       {label}
-      <Input key={value} defaultValue={value} onBlur={(e) => e.target.value.trim() && e.target.value !== value && onChange(e.target.value.trim())} />
+      <Input key={value} defaultValue={value} autoFocus={autoFocus} onFocus={(e) => {
+          if (autoFocus) e.target.select()
+          onFocus?.()
+        }} onBlur={(e) => e.target.value.trim() && e.target.value !== value && onChange(e.target.value.trim())} />
     </label>
   )
 }

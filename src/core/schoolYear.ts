@@ -51,6 +51,10 @@ export function nationalHolidays(startYear: number): Holiday[] {
     { name: 'Festa della Liberazione', from: isoDate(y + 1, 4, 25), to: isoDate(y + 1, 4, 25) },
     { name: 'Festa dei lavoratori', from: isoDate(y + 1, 5, 1), to: isoDate(y + 1, 5, 1) },
     { name: 'Festa della Repubblica', from: isoDate(y + 1, 6, 2), to: isoDate(y + 1, 6, 2) },
+    // In fondo per non cambiare gli id delle altre: in pagina si ordinano per data.
+    { name: 'Commemorazione dei defunti', from: isoDate(y, 11, 2), to: isoDate(y, 11, 2) },
+    // Di nuovo festa nazionale dal 2026.
+    ...(y >= 2026 ? [{ name: 'San Francesco', from: isoDate(y, 10, 4), to: isoDate(y, 10, 4) }] : []),
   ]
   return list.map((h, i) => ({ ...h, id: `h${i + 1}` }))
 }

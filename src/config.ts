@@ -13,7 +13,7 @@ export const GOOGLE_SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 // Da quando Settimana, Da fare e Orario guardano alla settimana dopo (ADR 0021). Il giorno, se
 // non indicato, è l'ultimo di scuola ricavato dall'orario (venerdì, o sabato se c'è lezione);
-// l'ora di default è le 19:00, a scuola finita. VITE_NEXT_WEEK_DAY: 1 lunedì … 7 domenica.
+// l'ora di default è le 18:00, a scuola finita. VITE_NEXT_WEEK_DAY: 1 lunedì … 7 domenica.
 const switchDay = Number(import.meta.env.VITE_NEXT_WEEK_DAY)
 const switchTime = import.meta.env.VITE_NEXT_WEEK_TIME
 export const NEXT_WEEK: WeekSwitch = {
