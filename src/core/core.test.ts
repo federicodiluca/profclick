@@ -13,7 +13,7 @@ import { mergeData, sameData } from './merge'
 import { type Course, emptyData, isDone, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
 import { topicProgress } from './progress'
 import { isFollowUp, isLater, needsPrep, setTodosDone, todos } from './todo'
-import { activitySteps, defaultSteps } from './steps'
+import { activitySteps, customStep, defaultSteps, stepLabel } from './steps'
 import { assessmentTypes, proposeWeeks, shareLessons } from './proposal'
 import { sampleData } from './sample'
 import { defaultSchoolYear } from './schoolYear'
@@ -893,6 +893,19 @@ describe('da fare', () => {
     // La stampa si aggiunge quando serve; cambiando tipo tornano i passi proposti.
     data = setActivityStep('c1', '2026-10-02', 'p', 'stampa', { present: true })(data)
     expect(activitySteps(data.lessons[lessonKey('c1', '2026-10-02')].activities[0]).map((x) => x.key)).toEqual(['prova', 'stampa', 'correggi', 'riconsegna', 'registro'])
+    // Un passo scritto a mano va tra quelli da preparare, prima della stampa.
+    data = setActivityStep('c1', '2026-10-02', 'p', customStep(' Prenotare l’aula '), { present: true })(data)
+    const withCustom = data.lessons[lessonKey('c1', '2026-10-02')].activities[0]
+    expect(activitySteps(withCustom).map((x) => stepLabel(x.key, withCustom))).toEqual([
+      'Preparare la prova e le sue versioni',
+      'Prenotare l’aula',
+      'Stampare le copie',
+      'Correggere',
+      'Riconsegnare',
+      'Voti sul registro',
+    ])
+    expect(list(data)).toContainEqual(['p:altro:Prenotare l’aula', '2026-10-02', false])
+    data = setActivityStep('c1', '2026-10-02', 'p', customStep('Prenotare l’aula'), { present: false })(data)
     const p = data.lessons[lessonKey('c1', '2026-10-02')].activities[0]
     data = updateActivity('c1', '2026-10-02', { ...p, assessment: { ...p.assessment!, type: 'teorico' } })(data)
     expect(activitySteps(data.lessons[lessonKey('c1', '2026-10-02')].activities[0]).map((x) => x.key)).toEqual(['registro'])

@@ -58,8 +58,14 @@ export function isReady(activity: Activity): boolean {
   return activitySteps(activity).every((s) => isAfter(s.key) || s.done)
 }
 
-/** Ordina i passi: prima quelli da preparare, poi quelli dopo, ciascuno nell'ordine proposto. */
+/** Un passo scritto a mano: la chiave è il suo testo, così lo stesso testo non si ripete. */
+export function customStep(text: string): StepKey {
+  return `altro:${text.trim()}`
+}
+
+/** Ordina i passi: prima quelli da preparare, poi quelli dopo, ciascuno nell'ordine proposto; quelli scritti a mano prima di stampare. */
 const ORDER: StepKey[] = ['prova', 'rivedere', 'slide', 'esercizi', 'laboratorio', 'materiale', 'stampa', 'correggi', 'riconsegna', 'registro']
+const order = (key: StepKey) => (key.startsWith('altro:') ? ORDER.indexOf('stampa') - 0.5 : ORDER.indexOf(key))
 
 /** Un passo fatto o da fare; aggiunto o tolto. Da qui i passi sono salvati nell'attività. */
 export function withStep(activity: Activity, key: StepKey, change: { done?: boolean; present?: boolean }): Activity {
@@ -67,7 +73,7 @@ export function withStep(activity: Activity, key: StepKey, change: { done?: bool
   if (change.present === false) steps = steps.filter((s) => s.key !== key)
   else if (!steps.some((s) => s.key === key)) steps = [...steps, { key, done: false }]
   if (change.done !== undefined) steps = steps.map((s) => (s.key === key ? { ...s, done: change.done! } : s))
-  steps = [...steps].sort((x, y) => ORDER.indexOf(x.key) - ORDER.indexOf(y.key))
+  steps = [...steps].sort((x, y) => order(x.key) - order(y.key))
   const { ready: _, ...rest } = activity
   return { ...rest, steps }
 }
@@ -95,5 +101,7 @@ export function stepLabel(key: StepKey, activity: Activity): string {
       return 'Riconsegnare'
     case 'registro':
       return 'Voti sul registro'
+    default:
+      return key.slice('altro:'.length)
   }
 }

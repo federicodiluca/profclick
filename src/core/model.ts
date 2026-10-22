@@ -154,7 +154,19 @@ export interface Assessment {
 }
 
 /** Un passo di un'attività (ADR 0022): prima la si prepara, dopo si corregge e si mettono i voti. */
-export type StepKey = 'prova' | 'rivedere' | 'slide' | 'esercizi' | 'laboratorio' | 'materiale' | 'stampa' | 'correggi' | 'riconsegna' | 'registro'
+export type StepKey =
+  | 'prova'
+  | 'rivedere'
+  | 'slide'
+  | 'esercizi'
+  | 'laboratorio'
+  | 'materiale'
+  | 'stampa'
+  | 'correggi'
+  | 'riconsegna'
+  | 'registro'
+  /** Un passo scritto a mano: dopo i due punti c'è il suo testo. */
+  | `altro:${string}`
 
 export interface ActivityStep {
   key: StepKey

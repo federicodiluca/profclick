@@ -13,7 +13,7 @@ import { addDays, formatDay, formatLong, formatShort, type ISODate, startOfWeek 
 import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, isAutoDone, isDone, lessonKey, type StepKey } from '@/core/model'
 import { courseTopics, TEACHING_KINDS, topicAround, topicsSinceLastAssessment } from '@/core/progress'
 import { lessonRegisterText } from '@/core/registerText'
-import { activitySteps, isAfter, optionalSteps, stepLabel } from '@/core/steps'
+import { activitySteps, customStep, isAfter, optionalSteps, stepLabel } from '@/core/steps'
 import { activityIcon } from '@/lib/activityIcons'
 import { newId } from '@/lib/id'
 import { formatHours } from '@/lib/ui'
@@ -552,6 +552,7 @@ function Steps({ courseId, date, activity }: { courseId: string; date: ISODate; 
   const { apply } = useData()
   const steps = activitySteps(activity)
   const extra = optionalSteps(activity)
+  const [custom, setCustom] = useState('')
   const set = (key: StepKey, change: { done?: boolean; present?: boolean }) => apply(setActivityStep(courseId, date, activity.id, key, change))
   const group = (title: string, list: typeof steps) =>
     list.length > 0 && (
@@ -585,21 +586,41 @@ function Steps({ courseId, date, activity }: { courseId: string; date: ISODate; 
     <div className="space-y-2 rounded-md bg-muted/40 p-2">
       {group('Da preparare', steps.filter((s) => !isAfter(s.key)))}
       {group('Dopo', steps.filter((s) => isAfter(s.key)))}
-      {extra.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Aggiungi:</span>
-          {extra.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => set(key, { present: true })}
-              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-            >
-              <PlusIcon className="size-3" /> {stepLabel(key, activity)}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-muted-foreground">Aggiungi:</span>
+        {extra.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => set(key, { present: true })}
+            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+          >
+            <PlusIcon className="size-3" /> {stepLabel(key, activity)}
+          </button>
+        ))}
+        <form
+          className="inline-flex items-center"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!custom.trim()) return
+            set(customStep(custom), { present: true })
+            setCustom('')
+          }}
+        >
+          <input
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            placeholder="Altro…"
+            aria-label="Aggiungi un passo scritto da te"
+            className="w-32 rounded-full border border-dashed bg-transparent px-2 py-0.5 text-xs outline-none placeholder:text-muted-foreground focus:w-48 focus:border-solid focus:border-foreground/30"
+          />
+          {custom.trim() && (
+            <button type="submit" aria-label="Aggiungi" className="ml-1 rounded-full border p-0.5 text-muted-foreground hover:text-foreground">
+              <PlusIcon className="size-3" />
             </button>
-          ))}
-        </div>
-      )}
+          )}
+        </form>
+      </div>
     </div>
   )
 }
