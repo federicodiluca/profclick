@@ -265,15 +265,8 @@ function LessonEditor({ courseId, date, onClose, onMoved }: { courseId: string; 
               </Button>
             )
           )}
-          {/* Tutto si salva già mentre si scrive: il pulsante chiude e lo conferma. */}
-          <Button
-            onClick={() => {
-              onClose()
-              toast.success('Salvato')
-            }}
-          >
-            Salva
-          </Button>
+          {/* Tutto si salva già mentre si scrive: il pulsante chiude soltanto, come nelle riunioni. */}
+          <Button onClick={onClose}>Fatto</Button>
         </span>
       </div>
     </>
