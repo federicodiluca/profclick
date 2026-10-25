@@ -186,16 +186,19 @@ function AssessmentChip({
   onToggle?: () => void
 }) {
   const className = cn(
-    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
+    // Da telefono un'etichetta lunga va a capo dentro il riquadro, a pezzi interi.
+    'inline-flex max-w-full flex-wrap items-center gap-x-1 rounded-xl border px-2 py-0.5 text-left text-xs transition-colors',
     done ? 'border-done/40 bg-done/10 text-done' : 'border-pencil-red/30 text-pencil-red',
     onToggle && !done && 'hover:border-done/50 hover:text-done',
   )
   const content = (
     <>
-      {createElement(done ? DoneIcon : isMinor(assessment) ? MinorGradeIcon : GRADE_ICONS[assessment.type], { className: 'size-3.5' })}
-      {assessmentLabel(assessment)}
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+        {createElement(done ? DoneIcon : isMinor(assessment) ? MinorGradeIcon : GRADE_ICONS[assessment.type], { className: 'size-3.5' })}
+        {assessmentLabel(assessment)}
+      </span>
       {assessment.text && <span className="opacity-75">· {assessment.text}</span>}
-      {at && <span className="opacity-75">· {formatShort(at)}</span>}
+      {at && <span className="whitespace-nowrap opacity-75">· {formatShort(at)}</span>}
     </>
   )
   if (!onToggle) return <span className={className}>{content}</span>

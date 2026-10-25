@@ -29,7 +29,7 @@ export function NoteDialog({ id, onClose }: { id: string | null; onClose: () => 
   }
   return (
     <Dialog open={Boolean(note)} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="sm:max-w-lg">{note && <NoteForm key={note.id} id={note.id} onClose={onClose} />}</DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">{note && <NoteForm key={note.id} id={note.id} onClose={onClose} />}</DialogContent>
     </Dialog>
   )
 }
@@ -68,7 +68,8 @@ function NoteForm({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <>
-      <DialogHeader>
+      {/* A destra resta il posto per la X di chiusura. */}
+      <DialogHeader className="pr-8">
         <DialogTitle className="sr-only">{note.title || 'Nuova nota'}</DialogTitle>
         <DialogDescription className="sr-only">Si salva da sola mentre scrivi.</DialogDescription>
         <Input
@@ -76,7 +77,7 @@ function NoteForm({ id, onClose }: { id: string; onClose: () => void }) {
           placeholder="Titolo"
           aria-label="Titolo"
           autoFocus={!note.title}
-          className="h-10 border-0 px-0 font-heading text-lg font-semibold shadow-none focus-visible:ring-0"
+          className="h-10 px-2.5 font-heading text-lg font-semibold md:text-lg"
           {...title}
         />
       </DialogHeader>
@@ -85,8 +86,9 @@ function NoteForm({ id, onClose }: { id: string; onClose: () => void }) {
         <Textarea
           ref={textRef}
           defaultValue={note.text}
-          rows={10}
-          placeholder={'Scrivi quello che vuoi.\n- una riga con il trattino è un elenco\n[ ] una con le parentesi si spunta'}
+          placeholder="Scrivi quello che vuoi…"
+          // Cresce con il testo (field-sizing), tra un minimo comodo e quanto sta nello schermo.
+          className="min-h-48 max-h-[50dvh]"
           aria-label="Testo della nota"
           autoFocus={Boolean(note.title)}
           onKeyDown={(e) => {

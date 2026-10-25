@@ -6,7 +6,7 @@
     <title>ProfClick · Piano di lavoro del docente e programmazione delle lezioni, gratis</title>
     <meta
       name="description"
-      content="L'app gratuita per insegnanti che trasforma programma e orario in un piano di lavoro lezione per lezione: argomenti per quadrimestre, verifiche e interrogazioni suggerite, voti sempre sotto controllo. Senza registrazione."
+      content="L'app gratuita per insegnanti che trasforma programma e orario in un piano di lavoro lezione per lezione: verifiche e interrogazioni suggerite, voti sotto controllo, cosa preparare e cosa correggere, riunioni e note in un posto solo. Senza registrazione."
     />
     <link rel="canonical" href="https://profclick.federicodiluca.com/" />
     <meta name="author" content="Federico Di Luca" />
@@ -24,7 +24,7 @@
     <meta property="og:title" content="ProfClick · Il piano di lavoro del docente, lezione per lezione" />
     <meta
       property="og:description"
-      content="Programma, orario e voti in un'unica app: ProfClick ti propone dove mettere spiegazioni e verifiche e ti dice ogni settimana cosa fare. Gratis, i dati restano sul tuo Google Drive."
+      content="Programma, orario, voti, riunioni e note in un'unica app: ProfClick ti propone dove mettere spiegazioni e verifiche e ti dice cosa preparare e cosa correggere. Gratis, i dati restano sul tuo Google Drive."
     />
     <meta property="og:image" content="https://profclick.federicodiluca.com/social-share.png" />
     <meta property="og:image:width" content="1200" />
@@ -42,7 +42,7 @@
             "name": "ProfClick",
             "url": "https://profclick.federicodiluca.com/",
             "image": "https://profclick.federicodiluca.com/social-share.png",
-            "description": "App per docenti per pianificare le lezioni: programma diviso per quadrimestri, piano settimanale, verifiche e interrogazioni suggerite in base alle ore, conteggio dei voti scritti, orali e pratici.",
+            "description": "App per docenti per pianificare le lezioni: programma diviso per quadrimestri, piano settimanale, verifiche e interrogazioni suggerite in base alle ore, conteggio dei voti scritti, orali e pratici, educazione civica, cose da preparare e da correggere, riunioni e note.",
             "applicationCategory": "EducationalApplication",
             "operatingSystem": "Web, Android, iOS, Windows, macOS",
             "inLanguage": "it",
@@ -92,6 +92,14 @@
                   "@type": "Answer",
                   "text": "No. Si apre e si usa subito. Per avere gli stessi dati su PC e telefono basta collegare il proprio account Google."
                 }
+              },
+              {
+                "@type": "Question",
+                "name": "Posso tenerci anche le mie note, al posto di Google Keep?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Sì. Nella sezione Note scrivi note libere con un titolo, elenchi, caselle da spuntare e link. Una nota si può collegare a una o più classi e compare anche nella pagina della classe."
+                }
               }
             ]
           }
@@ -134,7 +142,8 @@
             </h1>
             <p class="text-lg text-muted-foreground">
               Inserisci il programma e l'orario delle tue classi. ProfClick conta le ore vere dell'anno, tolte festività e vacanze, ti propone dove mettere
-              spiegazioni, verifiche e interrogazioni e ogni settimana ti dice cosa fare. Basta note sparse.
+              spiegazioni, verifiche e interrogazioni e ogni settimana ti dice cosa fare, cosa preparare e cosa correggere. Riunioni e note comprese: basta
+              note sparse.
             </p>
             <div class="flex flex-wrap gap-3">
               <a href="/app/" class="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/85">
@@ -162,8 +171,10 @@
                   <p><span class="font-medium text-pencil-red">Prova pratica</span> <span class="text-muted-foreground">· Classi e oggetti in Java</span></p>
                 </div>
               </div>
-              <div class="flex gap-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-xs">
-                <span><strong>3A</strong>: 3 voti previsti su 5 nel 1° quadrimestre, manca il pratico. 18 lezioni ancora libere.</span>
+              <div class="space-y-1.5 rounded-xl border border-warn/40 bg-warn/10 p-3 text-xs">
+                <p class="font-semibold">Da fare</p>
+                <p class="flex items-center gap-2"><span class="inline-block size-3 shrink-0 rounded border border-current opacity-60"></span><span><strong>4B</strong> · Preparare la prova pratica e le sue versioni</span></p>
+                <p class="flex items-center gap-2"><span class="inline-block size-3 shrink-0 rounded border border-current opacity-60"></span><span><strong>3A</strong> · Correggere la verifica scritta, poi i voti sul registro</span></p>
               </div>
             </div>
           </div>
@@ -204,7 +215,15 @@
             <p class="text-muted-foreground">
               Imposti la regola della tua scuola una volta: per esempio un voto per ogni ora settimanale, con almeno uno scritto, un orale e un pratico, più
               i voti minori che pesano meno. ProfClick conta le valutazioni in calendario e ti avvisa per tempo se in una classe ne mancano, prima che
-              il quadrimestre finisca.
+              il quadrimestre finisca. Lo stesso per le ore di educazione civica.
+            </p>
+          </div>
+          <div class="space-y-4">
+            <h2 class="font-heading text-3xl font-bold tracking-tight">Cosa preparare, cosa correggere.</h2>
+            <p class="text-muted-foreground">
+              Ogni lezione in programma porta con sé quello che serve: le slide da rivedere, gli esercizi, la prova con le sue versioni. Dopo la verifica
+              restano da fare la correzione, la riconsegna e i voti sul registro, finché non li spunti. Tutto in una lista sola, settimana per
+              settimana.
             </p>
           </div>
           <div class="space-y-4">
@@ -219,6 +238,20 @@
             <p class="text-muted-foreground">
               Segni consigli di classe, scrutini, GLO, collegi e corsi con le cose da preparare, già proposte per tipo e per il coordinatore. Per consigli
               e scrutini trovi la situazione della classe ricavata dal piano: voti fatti, tipi mancanti, argomenti svolti, pronta da copiare nel verbale.
+            </p>
+          </div>
+          <div class="space-y-4">
+            <h2 class="font-heading text-3xl font-bold tracking-tight">Le tue note, al posto di Keep.</h2>
+            <p class="text-muted-foreground">
+              Idee per le slide, progetti da rivedere, numeri e scadenze della scuola: una bacheca di note con titolo, elenchi, caselle da spuntare e
+              link. Collegata a una classe, una nota compare anche nella sua pagina.
+            </p>
+          </div>
+          <div class="space-y-4">
+            <h2 class="font-heading text-3xl font-bold tracking-tight">Registro, orario e calendario.</h2>
+            <p class="text-muted-foreground">
+              Gli argomenti di una lezione o di tutta la settimana come testo da incollare nel registro elettronico. L'orario di tutte le classi da tenere
+              sul telefono o stampare. Verifiche e riunioni su Google Calendar, una alla volta o tutte insieme.
             </p>
           </div>
         </section>
@@ -299,6 +332,13 @@
             <details class="group p-5">
               <summary class="flex cursor-pointer items-center justify-between gap-3 font-semibold">Serve registrarsi?<span class="faq-chevron text-muted-foreground transition">›</span></summary>
               <p class="mt-3 text-muted-foreground">No. Si apre e si usa subito. Per avere gli stessi dati su PC e telefono basta collegare il proprio account Google.</p>
+            </details>
+            <details class="group p-5">
+              <summary class="flex cursor-pointer items-center justify-between gap-3 font-semibold">Posso tenerci anche le mie note, al posto di Google Keep?<span class="faq-chevron text-muted-foreground transition">›</span></summary>
+              <p class="mt-3 text-muted-foreground">
+                Sì. Nella sezione Note scrivi note libere con un titolo, elenchi, caselle da spuntare e link. Una nota si può collegare a una o più classi e
+                compare anche nella pagina della classe.
+              </p>
             </details>
           </div>
         </section>

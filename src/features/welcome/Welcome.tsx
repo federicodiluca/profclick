@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Segmented } from '@/components/bits'
-import { BoardIcon, GoogleIcon, SuggestIcon, UploadIcon, WrittenTestIcon } from '@/components/icons'
+import { GoogleIcon, NotesIcon, PrepIcon, SuggestIcon, UploadIcon, WrittenTestIcon } from '@/components/icons'
 import { InstallButton } from '@/components/InstallButton'
 import { Button } from '@/components/ui/button'
 import { setYear } from '@/core/actions'
@@ -27,15 +27,16 @@ export default function Welcome() {
         <h1 className="font-heading text-3xl font-bold tracking-tight text-balance">Il piano di lavoro, lezione per lezione.</h1>
         <p className="text-muted-foreground">
           Metti il programma e l'orario delle tue classi: ProfClick conta le ore vere dell'anno, ti propone dove mettere spiegazioni e verifiche per avere
-          tutti i voti che servono, e ogni settimana ti dice cosa fare. Al posto delle note sparse.
+          tutti i voti che servono, e ogni settimana ti dice cosa fare e cosa preparare. Al posto delle note sparse.
         </p>
       </div>
 
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {[
-          { icon: BoardIcon, text: 'Il programma diviso per periodi, con le verifiche di ogni argomento' },
+          { icon: SuggestIcon, text: 'Il programma diviso per periodi e una proposta di piano, da applicare con un tocco' },
           { icon: WrittenTestIcon, text: 'Scritto, orale e pratico: sai sempre quali voti mancano' },
-          { icon: SuggestIcon, text: 'Una proposta di piano, da applicare con un tocco' },
+          { icon: PrepIcon, text: 'Cosa preparare prima delle lezioni e cosa correggere dopo, in una lista sola' },
+          { icon: NotesIcon, text: 'Riunioni e note al posto di quelle su Keep, anche per classe' },
         ].map(({ icon: Icon, text }) => (
           <li key={text} className="flex gap-2 rounded-xl border bg-card p-3 text-sm">
             <Icon className="size-5 shrink-0 text-pencil-blue" />

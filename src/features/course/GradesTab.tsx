@@ -154,20 +154,21 @@ function GradeRow({ course, event, previous, onOpen }: { course: Course; event: 
         <span className="min-w-0 flex-1">
           <span className="font-medium">{assessmentLabel(event)}</span>
           {detail && <span className="text-muted-foreground"> · {detail}</span>}
+          {/* Sotto il testo, non accanto: da telefono il pulsante schiacciava la riga. */}
+          {canMerge && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-1.5 flex h-6 px-1.5 text-xs text-muted-foreground"
+              title="Questa valutazione prosegue quella prima: un voto solo"
+              onClick={() =>
+                applyWithUndo(mergeAssessment(course.id, date, event.activity.id, previous.activity), `Unita a quella del ${formatShort(previous.date!)}: un voto solo`)
+              }
+            >
+              <MergeIcon /> Unisci alla precedente
+            </Button>
+          )}
         </span>
-        {canMerge && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 shrink-0 px-1.5 text-xs text-muted-foreground"
-            title="Questa valutazione prosegue quella prima: un voto solo"
-            onClick={() =>
-              applyWithUndo(mergeAssessment(course.id, date, event.activity.id, previous.activity), `Unita a quella del ${formatShort(previous.date!)}: un voto solo`)
-            }
-          >
-            <MergeIcon /> Unisci alla precedente
-          </Button>
-        )}
         {event.done && <DoneIcon className="size-4 shrink-0 text-done" aria-label="Fatto" />}
       </div>
       {event.parts.length > 0 && (
