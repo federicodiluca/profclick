@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addActivity, addExtraLesson, activityRepeats, cancelAndShift, mergeAssessment, separateAssessment, setRepeats, toggleRepeat, updateActivity, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, saveCourse, saveMeeting, saveTopics, setActivityReady, setActivityStep, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
+import { addActivity, addExtraLesson, activityRepeats, cancelAndShift, mergeAssessment, separateAssessment, setRepeats, toggleRepeat, updateActivity, deleteLesson, moveLesson, setCancelled, changeSchedule, copyProgram, deleteArchivedYear, deleteCourse, deleteMeeting, deleteNote, saveCourse, saveMeeting, saveNote, saveTopics, setActivityReady, setActivityStep, setDone, setTopicCompleted, setYear, startNewYear, toggleMeetingPrep, undoTo } from './actions'
 import { archivedProgram, currentProgram, nextSchoolYear, programSources } from './archive'
 import { programText } from './programText'
 import { registerText } from './registerText'
@@ -10,6 +10,7 @@ import { nextGrades, periodGrades, placedAssessments, programAssessments, target
 import { parseProgram } from './importText'
 import { classSummary, defaultPrep, meetingPeriod, openMeetingPrep, pendingAfter, summaryText, updateDefaultPrep, wasCoordinator, wroteMinutes } from './meetings'
 import { mergeData, sameData } from './merge'
+import { inlineParts, noteChecks, noteCourses, noteLines, sortedNotes, toggleNoteLine, topOrder } from './notes'
 import { type Course, emptyData, isDone, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
 import { topicProgress } from './progress'
 import { isFollowUp, isLater, needsPrep, setTodosDone, todos } from './todo'
@@ -33,7 +34,6 @@ const course: Omit<Course, 'updatedAt'> = {
   civics: {},
   periodNotes: {},
   prep: [],
-  notes: '',
   order: 0,
 }
 
@@ -1106,5 +1106,62 @@ describe('orario stampabile', () => {
     const t = timetable(data, '2026-10-13')
     expect(t.cells.get(cellKey(2, 5))?.date).toBe('2026-10-13')
     expect(t.cells.has(cellKey(2, 3))).toBe(false)
+  })
+})
+
+describe('note', () => {
+  const note = { id: 'n1', title: 'Slide', text: '', courseIds: [], pinned: false, order: 0 }
+
+  it('legge caselle, elenchi, grassetto e link', () => {
+    const lines = noteLines('Prossimi:\n- [ ] Arduino\n[x] Reti\n- C# concorrenza\n\n**ARGO** su https://www.portaleargo.it.')
+    expect(lines.map((l) => l.kind)).toEqual(['text', 'check', 'check', 'bullet', 'blank', 'text'])
+    expect(lines[1]).toEqual({ kind: 'check', done: false, text: 'Arduino' })
+    expect(lines[2]).toEqual({ kind: 'check', done: true, text: 'Reti' })
+    expect(inlineParts((lines[5] as { text: string }).text)).toEqual([
+      { kind: 'bold', text: 'ARGO' },
+      { kind: 'text', text: ' su ' },
+      { kind: 'link', text: 'https://www.portaleargo.it' },
+      { kind: 'text', text: '.' },
+    ])
+  })
+
+  it('spunta una riga e conta le caselle', () => {
+    const text = 'Titolo\n[ ] uno\n- [x] due'
+    expect(toggleNoteLine(text, 1)).toBe('Titolo\n[x] uno\n- [x] due')
+    expect(toggleNoteLine(text, 2)).toBe('Titolo\n[ ] uno\n- [ ] due')
+    expect(toggleNoteLine(text, 0)).toBe(text)
+    expect(noteChecks(text)).toEqual({ done: 1, total: 2 })
+  })
+
+  it('fissate in cima, nuove sopra; si uniscono e restano al nuovo anno senza classi', () => {
+    let data = saveNote({ ...note, courseIds: ['c1', 'sparita'] })(base())
+    data = saveNote({ ...note, id: 'n2', order: topOrder(data) })(data)
+    data = saveNote({ ...note, id: 'n3', order: topOrder(data), pinned: true })(data)
+    expect(sortedNotes(data).map((n) => n.id)).toEqual(['n3', 'n2', 'n1'])
+    expect(noteCourses(data, data.notes.n1).map((c) => c.id)).toEqual(['c1'])
+
+    const other = deleteNote('n2')(data)
+    expect(Object.keys(mergeData(data, other).notes).sort()).toEqual(['n1', 'n3'])
+    expect(normalizeData(JSON.parse(JSON.stringify({ ...data, notes: undefined }))).notes).toEqual({})
+
+    const next = startNewYear(nextSchoolYear(data.year!))(data)
+    expect(Object.keys(next.notes).sort()).toEqual(['n1', 'n2', 'n3'])
+    expect(next.notes.n1.courseIds).toEqual([])
+  })
+})
+
+describe('appunti delle classi diventati note', () => {
+  it('una nota per classe, la stessa su ogni dispositivo, che non torna se cancellata', () => {
+    const raw = JSON.parse(JSON.stringify(base()))
+    raw.courses.c1.notes = 'Due ragazzi con PDP'
+    const data = normalizeData(raw)
+    expect(data.notes['appunti-c1']).toMatchObject({ title: 'Appunti 3A', text: 'Due ragazzi con PDP', courseIds: ['c1'] })
+    expect('notes' in data.courses.c1).toBe(false)
+    expect(sameData(data, normalizeData(raw))).toBe(true)
+
+    const removed = deleteNote('appunti-c1')(data)
+    expect(normalizeData(JSON.parse(JSON.stringify({ ...removed, courses: raw.courses }))).notes).toEqual({})
+    // Senza appunti, nessuna nota.
+    expect(normalizeData(JSON.parse(JSON.stringify(base()))).notes).toEqual({})
   })
 })

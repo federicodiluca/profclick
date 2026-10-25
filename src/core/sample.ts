@@ -2,7 +2,7 @@
 // un piano già proposto e due riunioni. Servono a provare ProfClick senza inserire niente e per gli
 // screenshot.
 
-import { applyProposal, markDone, saveCourse, saveMeeting, saveTopics, setActivityStep, setYear } from './actions'
+import { applyProposal, markDone, saveCourse, saveMeeting, saveNote, saveTopics, setActivityStep, setYear } from './actions'
 import { courseSlots } from './calendar'
 import { addDays, type ISODate, startOfWeek } from './dates'
 import { defaultPrep } from './meetings'
@@ -36,7 +36,6 @@ const PROGRAMS: { course: Omit<Course, 'updatedAt'>; topics: SampleTopic[] }[] =
         { id: 'demo-3a-p1', text: 'Esercizi di laboratorio su selezione e cicli', topicId: 'demo-3a-t2', done: false },
         { id: 'demo-3a-p2', text: 'Slide sugli array', topicId: 'demo-3a-t3', done: false },
       ],
-      notes: 'Laboratorio il venerdì con l\'ITP. Due ragazzi con PDP: verifiche con mappa concettuale.',
       order: 0,
     },
     topics: [
@@ -66,7 +65,6 @@ const PROGRAMS: { course: Omit<Course, 'updatedAt'>; topics: SampleTopic[] }[] =
       civics: { p2: 4 },
       periodNotes: {},
       prep: [],
-      notes: '',
       order: 1,
     },
     topics: [
@@ -144,5 +142,23 @@ export function sampleData(today: ISODate): ProfclickData {
     const prep = defaultPrep(kind, roles, ((j) => () => `${id}-p${j++}`)(0)).map((p) => ({ ...p, done: date < today && !p.after }))
     data = saveMeeting({ id, kind, date, time, className, title, ...roles, prep, notes })(data)
   })
+
+  // Due note in bacheca: gli appunti della 3A e una generale, fissata in cima.
+  data = saveNote({
+    id: 'demo-n1',
+    title: 'Appunti 3A',
+    text: "Laboratorio il venerdì con l'ITP.\nDue ragazzi con PDP: verifiche con mappa concettuale.",
+    courseIds: ['demo-3a'],
+    pinned: false,
+    order: 0,
+  })(data)
+  data = saveNote({
+    id: 'demo-n2',
+    title: 'Slide e laboratori',
+    text: '[x] Slide sugli algoritmi\n[ ] Laboratorio su Arduino\n[ ] Rivedere i progetti di gruppo\n\nPer il prossimo anno:\n- un laboratorio sui database',
+    courseIds: [],
+    pinned: true,
+    order: -1,
+  })(data)
   return data
 }

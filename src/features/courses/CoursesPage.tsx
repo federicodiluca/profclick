@@ -3,12 +3,13 @@ import { Link, useLocation } from 'wouter'
 import { CourseName, ProgressBar } from '@/components/bits'
 import { PlusIcon, TimetableIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { currentPeriod, sortedCourses } from '@/core/calendar'
-import { today } from '@/core/dates'
+import { currentPeriod, periodSlots, sortedCourses } from '@/core/calendar'
+import { formatShort, type ISODate, startOfWeek, today } from '@/core/dates'
 import { periodGrades } from '@/core/grading'
-import { weeklyHours } from '@/core/model'
+import { type Course, type Period, type ProfclickData, weeklyHours } from '@/core/model'
+import { freeSlots } from '@/core/proposal'
 import { topicProgress } from '@/core/progress'
-import { courseSurface, gradesLine } from '@/lib/ui'
+import { courseSurface, formatHours, gradesLine } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
 import { CourseDialog } from './CourseDialog'
@@ -62,9 +63,20 @@ export default function CoursesPage() {
                 <ProgressBar value={done} max={progress.length} />
               </div>
               {grades && period && (
-                <p className={cn('text-xs', grades.status === 'ok' ? 'text-muted-foreground' : grades.status === 'a-rischio' ? 'text-pencil-red' : 'text-warn')}>
-                  Voti del {period.name}: {gradesLine(grades)}
-                </p>
+                <div className="space-y-0.5 text-xs">
+                  <p className={cn(grades.status === 'ok' ? 'text-muted-foreground' : grades.status === 'a-rischio' ? 'text-pencil-red' : 'text-warn')}>
+                    Voti del {period.name}: {gradesLine(grades)}
+                  </p>
+                  {grades.civics.target > 0 && (
+                    <p className={cn(grades.civics.planned >= grades.civics.target - 0.01 ? 'text-muted-foreground' : 'text-warn')}>
+                      Ed. civica: {formatHours(grades.civics.planned)} su {grades.civics.target}
+                    </p>
+                  )}
+                  <p className="text-muted-foreground">
+                    {grades.remainingLessons === 1 ? 'Resta una lezione' : `Restano ${grades.remainingLessons} lezioni`}
+                    {planLine(data, course, period, now)}
+                  </p>
+                </div>
               )}
             </Link>
           )
@@ -74,4 +86,18 @@ export default function CoursesPage() {
       <CourseDialog open={creating} onClose={() => setCreating(false)} onSaved={(id) => navigate(`/classi/${id}`)} />
     </div>
   )
+}
+
+/** ": pianificato fino al 14/11, ancora 6 settimane": quanto manca da mettere in calendario nel periodo. */
+function planLine(data: ProfclickData, course: Course, period: Period, now: ISODate): string {
+  const free = freeSlots(data, course, period, now)
+  const weeks = new Set(free.map((s) => startOfWeek(s.date))).size
+  if (weeks === 0) return ', tutte pianificate'
+  const count = weeks === 1 ? 'una settimana' : `${weeks} settimane`
+  // Pianificato di seguito fino a una data: nessuna lezione già piena dopo la prima vuota.
+  const planned = periodSlots(data, course, period).filter((s) => s.date >= now && s.lesson?.activities.length)
+  const lastBefore = planned.filter((s) => s.date < free[0].date).at(-1)
+  const contiguous = !planned.some((s) => s.date > free[0].date)
+  if (contiguous && lastBefore) return `: pianificato fino al ${formatShort(lastBefore.date)}, ancora ${count}`
+  return contiguous ? `: ancora ${count} da pianificare` : `: ${count} con lezioni ancora vuote`
 }

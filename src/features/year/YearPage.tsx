@@ -15,12 +15,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { deleteArchivedYear, deleteCourse, deleteMeeting, setYear, startNewYear } from '@/core/actions'
+import { deleteArchivedYear, deleteCourse, deleteMeeting, deleteNote, setYear, startNewYear } from '@/core/actions'
 import { archivedProgram, nextSchoolYear } from '@/core/archive'
 import type { ProgramTextInput } from '@/core/programText'
 import { ProgramTextDialog } from '@/features/course/ProgramTextDialog'
 import { allAssessments, allMeetings, toIcs } from '@/core/calendarExport'
-import { addDays, formatDay, today } from '@/core/dates'
+import { schoolWeeks } from '@/core/calendar'
+import { addDays, formatDay, startOfWeek, today } from '@/core/dates'
 import { type Holiday, normalizeData, type SchoolYear } from '@/core/model'
 import { PERIOD_PRESETS, type PeriodPreset, presetPeriods } from '@/core/schoolYear'
 import { newId } from '@/lib/id'
@@ -34,13 +35,17 @@ export default function YearPage() {
   const update = (patch: Partial<SchoolYear>) => apply(setYear({ ...year, ...patch }))
   const demoCourses = Object.keys(data.courses).filter((id) => id.startsWith('demo-'))
   const demoMeetings = Object.keys(data.meetings).filter((id) => id.startsWith('demo-'))
+  const demoNotes = Object.keys(data.notes).filter((id) => id.startsWith('demo-'))
   // Il passaggio all'anno nuovo compare negli ultimi due mesi e, finite le lezioni, va in cima.
   const over = today() > year.end
   const ending = today() >= addDays(year.end, -60)
 
   return (
     <div className="space-y-10">
-      <h1 className="font-heading text-2xl font-bold">Anno scolastico {year.label}</h1>
+      <div className="space-y-4">
+        <h1 className="font-heading text-2xl font-bold">Anno scolastico {year.label}</h1>
+        <YearProgress />
+      </div>
 
       {over && <NewYearSection />}
 
@@ -99,7 +104,7 @@ export default function YearPage() {
         <Section title="Dati di esempio">
           <p className="text-sm text-muted-foreground">Le classi di esempio servono solo a provare. Quando sei pronto, toglile e aggiungi le tue.</p>
           <Button variant="destructive" onClick={() => applyWithUndo(
-                (d) => demoMeetings.reduce((x, id) => deleteMeeting(id)(x), demoCourses.reduce((x, id) => deleteCourse(id)(x), d)),
+                (d) => demoNotes.reduce((x, id) => deleteNote(id)(x), demoMeetings.reduce((x, id) => deleteMeeting(id)(x), demoCourses.reduce((x, id) => deleteCourse(id)(x), d))),
                 'Classi di esempio rimosse',
               )}>
             <TrashIcon /> Rimuovi le classi di esempio
@@ -285,6 +290,53 @@ function CalendarSection() {
 }
 
 /** Fine anno: classi e programmi nell'archivio, si riparte dall'anno dopo (ADR 0012). */
+/**
+ * Quanto dell'anno è passato, in settimane di scuola: le vacanze non contano, come quando si
+ * pianifica. Una barra sola, divisa nei periodi, ognuno largo quanto le sue settimane.
+ */
+function YearProgress() {
+  const { data } = useData()
+  const year = data.year!
+  const now = today()
+  const monday = startOfWeek(now)
+  const periods = year.periods.map((p) => {
+    const weeks = schoolWeeks(year, p)
+    return { period: p, weeks: weeks.length, passed: now > p.end ? weeks.length : weeks.filter((w) => w < monday).length }
+  })
+  const total = periods.reduce((s, p) => s + p.weeks, 0)
+  const passed = periods.reduce((s, p) => s + p.passed, 0)
+  if (total === 0) return null
+  const left = total - passed
+  const text =
+    now < year.start
+      ? `Non è ancora iniziato: ${total} settimane di scuola`
+      : now > year.end
+        ? 'Lezioni concluse'
+        : left === 1
+          ? "Resta quest'ultima settimana di scuola"
+          : `Restano ${left} settimane di scuola su ${total}`
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm text-muted-foreground">{text}</p>
+      <div className="flex gap-1" role="presentation">
+        {periods.map(({ period, weeks, passed }) => (
+          <div key={period.id} className="min-w-0 space-y-1" style={{ flex: `${weeks || 1} 1 0` }}>
+            <div className="relative h-2 overflow-hidden rounded-full bg-muted">
+              <div className="absolute inset-y-0 left-0 rounded-full bg-pencil-blue transition-all" style={{ width: `${weeks ? (passed / weeks) * 100 : 0}%` }} />
+            </div>
+            {periods.length > 1 && (
+              <p className="truncate text-xs text-muted-foreground">
+                {period.name}
+                {passed > 0 && passed < weeks && ` · ancora ${weeks - passed} sett.`}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function NewYearSection() {
   const { data, applyWithUndo } = useData()
   const [confirm, setConfirm] = useState(false)

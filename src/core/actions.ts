@@ -14,6 +14,7 @@ import {
   type Lesson,
   lessonKey,
   type Meeting,
+  type Note,
   type PastSchedule,
   type ProfclickData,
   sameSchedule,
@@ -507,6 +508,16 @@ export function toggleMeetingPrep(meetingId: string, itemId: string): Change {
   }
 }
 
+// --- Note -----------------------------------------------------------------------------
+
+export function saveNote(note: Omit<Note, 'updatedAt'>): Change {
+  return (data) => put(data, 'notes', note.id, { ...note, updatedAt: 0 })
+}
+
+export function deleteNote(noteId: string): Change {
+  return (data) => remove(data, 'notes', [noteId])
+}
+
 // --- Anni precedenti --------------------------------------------------------------------
 
 /**
@@ -539,13 +550,14 @@ export function copyProgram(source: ProgramSource, courseId: string, newId: () =
 /**
  * Fine anno: classi e programmi vanno nell'archivio, lezioni, verifiche e riunioni si
  * tolgono, e si parte con l'anno nuovo. Le classi nuove si creano da capo (cambiano ogni
- * anno), copiando il programma da quelle archiviate.
+ * anno), copiando il programma da quelle archiviate. Le note restano, senza più le classi.
  */
 export function startNewYear(year: Omit<SchoolYear, 'updatedAt'>): Change {
   return (data) => {
     const snapshot = archivedYear(data)
     let next = snapshot ? put(data, 'archive', snapshot.label, { ...snapshot, updatedAt: 0 }) : data
     for (const collection of ['courses', 'topics', 'lessons', 'meetings'] as const) next = remove(next, collection, Object.keys(next[collection]))
+    for (const note of Object.values(next.notes)) if (note.courseIds.length) next = saveNote({ ...note, courseIds: [] })(next)
     return setYear(year)(next)
   }
 }

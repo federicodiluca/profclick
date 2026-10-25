@@ -37,7 +37,6 @@ const course = (id: string) => ({
   periodNotes: {},
   prep: [],
   rules: { perPeriod: null, required: [], minorWeight: 50 },
-  notes: '',
   order: 0,
 })
 

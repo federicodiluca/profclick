@@ -32,7 +32,6 @@ function blank(order: number, color: number, minorWeight: number): Draft {
     civics: {},
     periodNotes: {},
     prep: [],
-    notes: '',
     order,
   }
 }

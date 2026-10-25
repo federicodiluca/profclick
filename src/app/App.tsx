@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Route, Router, Switch } from 'wouter'
+import { Redirect, Route, Router, Switch } from 'wouter'
 import { useHashLocation } from 'wouter/use-hash-location'
 import { Toaster } from '@/components/ui/sonner'
 import { UpdatePrompt } from '@/components/UpdatePrompt'
@@ -12,7 +12,7 @@ const WeekPage = lazy(() => import('@/features/week/WeekPage'))
 const TodoPage = lazy(() => import('@/features/todo/TodoPage'))
 const CoursesPage = lazy(() => import('@/features/courses/CoursesPage'))
 const CoursePage = lazy(() => import('@/features/course/CoursePage'))
-const SummaryPage = lazy(() => import('@/features/summary/SummaryPage'))
+const NotesPage = lazy(() => import('@/features/notes/NotesPage'))
 const MeetingsPage = lazy(() => import('@/features/meetings/MeetingsPage'))
 const YearPage = lazy(() => import('@/features/year/YearPage'))
 const TimetablePage = lazy(() => import('@/features/timetable/TimetablePage'))
@@ -32,7 +32,11 @@ function Pages() {
       <Route path="/da-fare" component={TodoPage} />
       <Route path="/classi" component={CoursesPage} />
       <Route path="/classi/:id" component={CoursePage} />
-      <Route path="/riepilogo" component={SummaryPage} />
+      <Route path="/note" component={NotesPage} />
+      {/* Il riepilogo per classe ora sta nelle schede di Classi (ADR 0023). */}
+      <Route path="/riepilogo">
+        <Redirect to="/classi" />
+      </Route>
       <Route path="/riunioni" component={MeetingsPage} />
       <Route path="/anno" component={YearPage} />
       <Route path="/orario" component={TimetablePage} />

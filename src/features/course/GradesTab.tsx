@@ -2,13 +2,15 @@ import { createElement, useState } from 'react'
 import { Section } from '@/components/bits'
 import { CivicsIcon, DoneIcon, MergeIcon, MinorGradeIcon, SplitIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { mergeAssessment, separateAssessment } from '@/core/actions'
+import { Textarea } from '@/components/ui/textarea'
+import { mergeAssessment, saveCourse, separateAssessment } from '@/core/actions'
 import { formatShort, type ISODate, today } from '@/core/dates'
 import { type GradeEvent, periodGrades } from '@/core/grading'
-import { assessmentLabel, type Course, GRADE_LABELS, isMinor, weeklyHours } from '@/core/model'
+import { assessmentLabel, type Course, GRADE_LABELS, isMinor, type Period, weeklyHours } from '@/core/model'
 import { GRADE_ICONS } from '@/lib/activityIcons'
 import { formatHours, gradesLine } from '@/lib/ui'
 import { cn } from '@/lib/utils'
+import { useAutosave } from '@/lib/useAutosave'
 import { LessonDialog } from '@/features/lesson/LessonDialog'
 import { useData } from '@/state/data'
 
@@ -100,10 +102,33 @@ export function GradesTab({ course }: { course: Course }) {
             {(g.unplaced.length > 0 || toPlan > 0) && (
               <p className="text-xs text-muted-foreground">Nel Piano, <em>Proponi piano</em> mette in calendario quello che manca.</p>
             )}
+            <PeriodNotes course={course} period={period} />
           </Section>
         )
       })}
       <LessonDialog courseId={course.id} date={open} onClose={() => setOpen(null)} />
+    </div>
+  )
+}
+
+/** Le note per lo scrutinio del periodo: si salvano da sole. */
+function PeriodNotes({ course, period }: { course: Course; period: Period }) {
+  const { apply } = useData()
+  const note = course.periodNotes[period.id] ?? ''
+  const field = useAutosave((value) => value !== note && apply(saveCourse({ ...course, periodNotes: { ...course.periodNotes, [period.id]: value } })))
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={`note-${period.id}`} className="text-sm font-medium">
+        Note per lo scrutinio
+      </label>
+      <Textarea
+        id={`note-${period.id}`}
+        key={`${course.id}${period.id}`}
+        defaultValue={note}
+        rows={note ? 4 : 2}
+        placeholder="Recuperi, accordi, chi tenere d'occhio…"
+        {...field}
+      />
     </div>
   )
 }

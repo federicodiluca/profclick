@@ -20,7 +20,7 @@ Una decisione superata non si cancella: si scrive un nuovo ADR che la sostituisc
 | [0012](0012-anni-precedenti.md) | Programma copiato da un'altra classe; anni precedenti in archivio | Accettata |
 | [0013](0013-programma-come-testo.md) | Programma svolto e piano di lavoro come testo da incollare | Accettata |
 | [0014](0014-filtro-e-ora-di-inizio.md) | Classi da vedere nella settimana; ora d'inizio facoltativa | Accettata |
-| [0015](0015-riepilogo.md) | Riepilogo per periodo a barre, con le note per lo scrutinio | Sostituita in parte da 0020 |
+| [0015](0015-riepilogo.md) | Riepilogo per periodo a barre, con le note per lo scrutinio | Sostituita da 0020 e 0023 |
 | [0016](0016-registro-e-orario.md) | Argomenti da incollare nel registro; orario da stampare | Accettata |
 | [0017](0017-da-fare.md) | Da fare: le cose da preparare nascono dalle lezioni | Accettata |
 | [0018](0018-lezioni-cambiate-a-mano.md) | Lezioni in più, spostate o eliminate a mano | Accettata |
@@ -28,3 +28,4 @@ Una decisione superata non si cancella: si scrive un nuovo ADR che la sostituisc
 | [0020](0020-senza-ore-stimate.md) | Senza ore stimate: piano a settimane, riepilogo dei prossimi voti | Accettata |
 | [0021](0021-dopo-la-riunione-e-settimana.md) | Cose da fare dopo una riunione, verifiche abbinate al programma, settimana dall'orario | Accettata |
 | [0022](0022-passi-delle-attivita.md) | I passi di un'attività: cosa preparare prima, cosa fare dopo; il colore delle classi | Accettata |
+| [0023](0023-note-al-posto-del-riepilogo.md) | Note come su Keep, collegabili alle classi; il riepilogo si scioglie in Classi, Voti e Anno | Accettata |

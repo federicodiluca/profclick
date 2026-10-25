@@ -1,24 +1,26 @@
 import { useState } from 'react'
-import { PlusIcon, PrepIcon, TrashIcon } from '@/components/icons'
+import { NotesIcon, PlusIcon, PrepIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { saveCourse, togglePrep } from '@/core/actions'
+import { saveCourse, saveNote, togglePrep } from '@/core/actions'
 import { formatShort, today } from '@/core/dates'
 import type { Course } from '@/core/model'
+import { sortedNotes, topOrder } from '@/core/notes'
 import { openPrep } from '@/core/prep'
 import { courseTopics } from '@/core/progress'
 import { newId } from '@/lib/id'
+import { NoteBoard } from '@/features/notes/NoteCard'
+import { NoteDialog } from '@/features/notes/NoteDialog'
 import { cn } from '@/lib/utils'
-import { useAutosave } from '@/lib/useAutosave'
 import { useData } from '@/state/data'
 
-/** Appunti liberi della classe e tutto quello che c'è da preparare, con quando serve. */
+/** Tutto quello che c'è da preparare, con quando serve, e le note della bacheca che riguardano la classe. */
 export function NotesTab({ course }: { course: Course }) {
   const { data, apply } = useData()
+  const [openNote, setOpenNote] = useState<string | null>(null)
+  const linkedNotes = sortedNotes(data).filter((n) => n.courseIds.includes(course.id))
   const [draft, setDraft] = useState('')
   const [topicId, setTopicId] = useState('')
-  const notes = useAutosave((value) => value !== course.notes && apply(saveCourse({ ...course, notes: value })))
   const due = new Map(openPrep(data, today()).map((p) => [p.item.id, p.due]))
   const topics = courseTopics(data, course.id).filter((t) => !t.completed)
   const items = [...course.prep].sort((a, b) => Number(a.done) - Number(b.done) || (due.get(a.id) ?? '9999').localeCompare(due.get(b.id) ?? '9999'))
@@ -98,16 +100,31 @@ export function NotesTab({ course }: { course: Course }) {
         )}
       </section>
 
-      <section className="space-y-2">
-        <h2 className="font-heading text-base font-semibold">Appunti</h2>
-        <p className="text-sm text-muted-foreground">Tutto quello che ti serve ricordare su questa classe. Si salva da solo.</p>
-        <Textarea
-          key={course.id}
-          defaultValue={course.notes}
-          rows={10}
-          placeholder="Accordi con i colleghi, studenti con PDP, materiale da portare…"
-          {...notes}
-        />
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 font-heading text-base font-semibold">
+            <NotesIcon className="size-4 text-pencil-blue" /> Note
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const id = newId()
+              apply(saveNote({ id, title: '', text: '', courseIds: [course.id], pinned: false, order: topOrder(data) }))
+              setOpenNote(id)
+            }}
+          >
+            <PlusIcon /> Nuova nota
+          </Button>
+        </div>
+        {linkedNotes.length > 0 ? (
+          <NoteBoard notes={linkedNotes} onOpen={setOpenNote} />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Accordi con i colleghi, studenti con PDP, materiale da portare: le note collegate a {course.className} stanno qui e nella bacheca.
+          </p>
+        )}
+        <NoteDialog id={openNote} onClose={() => setOpenNote(null)} />
       </section>
     </div>
   )

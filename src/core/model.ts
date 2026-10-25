@@ -96,11 +96,9 @@ export interface Course extends Stamped {
   rules: GradeRules
   /** Ore di educazione civica da svolgere, per periodo. */
   civics: Record<string, number>
-  /** Note del riepilogo, per periodo: cosa ricordare per lo scrutinio. */
+  /** Note per lo scrutinio, per periodo: recuperi, accordi, chi tenere d'occhio. */
   periodNotes: Record<string, string>
   prep: PrepItem[]
-  /** Appunti liberi sulla classe: quello che prima stava nelle note sparse. */
-  notes: string
   order: number
 }
 
@@ -267,6 +265,24 @@ export interface Meeting extends Stamped {
   notes: string
 }
 
+// --- Note (ADR 0023) -------------------------------------------------------------------
+
+/**
+ * Una nota della bacheca, come su Keep: un titolo e un testo libero. Le righe che iniziano con
+ * "[ ]" o "[x]" si spuntano, quelle con "-" sono un elenco (notes.ts).
+ */
+export interface Note extends Stamped {
+  id: string
+  title: string
+  text: string
+  /** Le classi di cui parla: la nota compare anche nei loro Appunti. Vuoto = nota generale. */
+  courseIds: string[]
+  /** Fissata in cima alla bacheca. */
+  pinned: boolean
+  /** Posizione nella bacheca: le nuove vanno in cima, con un numero più basso. */
+  order: number
+}
+
 // --- Anni precedenti (ADR 0012) ---------------------------------------------------------
 
 /** Un argomento di un anno concluso: lo stesso di prima, senza la classe e la data di modifica. */
@@ -299,6 +315,7 @@ export interface ProfclickData {
   topics: Record<string, Topic>
   lessons: Record<string, Lesson>
   meetings: Record<string, Meeting>
+  notes: Record<string, Note>
   /** Gli anni conclusi, per etichetta. */
   archive: Record<string, ArchivedYear>
   /**
@@ -308,10 +325,10 @@ export interface ProfclickData {
   deleted: Record<string, number>
 }
 
-export type Collection = 'courses' | 'topics' | 'lessons' | 'meetings' | 'archive'
+export type Collection = 'courses' | 'topics' | 'lessons' | 'meetings' | 'notes' | 'archive'
 
 export function emptyData(): ProfclickData {
-  return { schema: 1, year: null, courses: {}, topics: {}, lessons: {}, meetings: {}, archive: {}, deleted: {} }
+  return { schema: 1, year: null, courses: {}, topics: {}, lessons: {}, meetings: {}, notes: {}, archive: {}, deleted: {} }
 }
 
 // --- Lettura tollerante -----------------------------------------------------------------
@@ -336,7 +353,9 @@ function normalizeSchedule(raw: unknown): ScheduleSlot[] {
   return []
 }
 
-function normalizeCourse(c: Loose<Course>): Course {
+function normalizeCourse(raw: Loose<Course>): Course {
+  // Gli appunti della classe ora sono una nota della bacheca (appuntiNotes).
+  const { notes: _notes, ...c } = raw
   return {
     ...(c as Course),
     schedule: normalizeSchedule(c.schedule),
@@ -344,7 +363,6 @@ function normalizeCourse(c: Loose<Course>): Course {
     civics: c.civics ?? {},
     periodNotes: c.periodNotes ?? {},
     prep: c.prep ?? [],
-    notes: c.notes ?? '',
   }
 }
 
@@ -385,6 +403,26 @@ function normalizeMeeting(m: Loose<Meeting>): Meeting {
   return { ...(m as Meeting), time: m.time ?? '', className: m.className ?? null, title: m.title ?? '', coordinator: Boolean(m.coordinator), minutes, prep, notes: m.notes ?? '' }
 }
 
+function normalizeNote(n: Loose<Note>): Note {
+  return { ...(n as Note), title: n.title ?? '', text: n.text ?? '', courseIds: n.courseIds ?? [], pinned: Boolean(n.pinned), order: n.order ?? 0 }
+}
+
+/**
+ * Prima delle note (ADR 0023) ogni classe aveva i suoi appunti, un testo solo: diventano una
+ * nota collegata alla classe. L'id viene dalla classe, così ogni dispositivo crea la stessa nota
+ * e non un doppione; una volta cancellata, non torna.
+ */
+function appuntiNotes(courses: Record<string, Loose<Course>>, notes: Record<string, Note>, deleted: Record<string, number>): Record<string, Note> {
+  const result = { ...notes }
+  for (const [courseId, c] of Object.entries(courses)) {
+    const text = typeof c.notes === 'string' ? c.notes.trim() : ''
+    const id = `appunti-${courseId}`
+    if (!text || result[id] || deleted[`notes:${id}`] !== undefined) continue
+    result[id] = { id, title: `Appunti ${c.className ?? ''}`.trim(), text, courseIds: [courseId], pinned: false, order: 0, updatedAt: c.updatedAt ?? 0 }
+  }
+  return result
+}
+
 function mapValues<T, U>(record: Record<string, T> | undefined, fn: (value: T) => U): Record<string, U> {
   return Object.fromEntries(Object.entries(record ?? {}).map(([k, v]) => [k, fn(v)]))
 }
@@ -399,13 +437,18 @@ export function normalizeData(raw: unknown): ProfclickData {
     topics: mapValues(value.topics as Record<string, Loose<Topic>>, (t) => normalizeTopic<Topic>(t)),
     lessons: mapValues(value.lessons as Record<string, Loose<Lesson>>, normalizeLesson),
     meetings: mapValues(value.meetings as Record<string, Loose<Meeting>>, normalizeMeeting),
+    notes: appuntiNotes(
+      (value.courses ?? {}) as Record<string, Loose<Course>>,
+      mapValues(value.notes as Record<string, Loose<Note>>, normalizeNote),
+      value.deleted ?? {},
+    ),
     archive: mapValues(value.archive as Record<string, Loose<ArchivedYear>>, normalizeArchivedYear),
     deleted: value.deleted ?? {},
   }
 }
 
 export function isEmptyData(data: ProfclickData): boolean {
-  return !data.year && Object.keys(data.courses).length === 0 && Object.keys(data.meetings).length === 0 && Object.keys(data.archive).length === 0 && Object.keys(data.deleted).length === 0
+  return !data.year && Object.keys(data.courses).length === 0 && Object.keys(data.meetings).length === 0 && Object.keys(data.notes).length === 0 && Object.keys(data.archive).length === 0 && Object.keys(data.deleted).length === 0
 }
 
 // --- Etichette --------------------------------------------------------------------------

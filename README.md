@@ -46,8 +46,11 @@ come app (PWA). Le decisioni di progetto sono in [docs/decisions](docs/decisions
 - **Proposta di piano** a settimane: scegli gli argomenti e su quante settimane, e si
   distribuiscono con le loro valutazioni sulle lezioni vuote, da applicare con un tocco.
 - **Settimana**: cosa fare in ogni classe, in ordine di ora, con la spunta di fatto.
-- **Riepilogo** per periodo: le settimane di scuola che restano e, per ogni classe, le lezioni
-  rimaste, i prossimi voti da dare, quanto resta da pianificare e le note per lo scrutinio.
+- **Note**: una bacheca come quella di Keep, con titolo e testo libero; le righe con `[ ]` si
+  spuntano, i link si aprono. Una nota collegata a una classe compare anche nei suoi Appunti.
+- **A colpo d'occhio**: in Classi, per ogni classe, voti ed educazione civica del periodo, le
+  lezioni rimaste e quanto resta da pianificare; in Anno, le settimane di scuola che restano.
+  Le note per lo scrutinio stanno nei Voti della classe, periodo per periodo.
 - **Nessun server**: i dati stanno sul dispositivo e, se colleghi Google, in un file sul tuo
   Drive. Le modifiche fatte da più dispositivi si uniscono da sole. Nessun dato degli studenti.
   Dettagli nell'[informativa sulla privacy](https://profclick.federicodiluca.com/privacy/).
