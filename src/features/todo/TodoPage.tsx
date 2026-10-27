@@ -228,6 +228,8 @@ function TodoList({ items, now, compact, onOpen }: { items: Todo[]; now: ISODate
       {rows(items).map((row) =>
         row[0].source.kind === 'activity' ? (
           <StepsRow key={row[0].id} todos={row} now={now} compact={compact} onOpen={() => onOpen(row[0])} />
+        ) : row[0].source.kind === 'meeting' ? (
+          <MeetingRow key={row[0].id} todos={row} now={now} compact={compact} onOpen={() => onOpen(row[0])} />
         ) : (
           <TodoRow key={row[0].id} todo={row[0]} now={now} compact={compact} onOpen={() => onOpen(row[0])} />
         ),
@@ -236,17 +238,20 @@ function TodoList({ items, now, compact, onOpen }: { items: Todo[]; now: ISODate
   )
 }
 
-/** I passi della stessa lezione stanno in una riga sola, anche con più attività: la lezione, e sotto le spunte. */
+/**
+ * I passi della stessa lezione stanno in una riga sola, anche con più attività: la lezione, e sotto
+ * le spunte. Lo stesso per le voci di una riunione.
+ */
 function rows(items: Todo[]): Todo[][] {
   const result: Todo[][] = []
   const byActivity = new Map<string, Todo[]>()
   for (const todo of items) {
     const s = todo.source
-    if (s.kind !== 'activity') {
+    if (s.kind === 'prep') {
       result.push([todo])
       continue
     }
-    const key = `${s.course.id}@${todo.due}`
+    const key = s.kind === 'activity' ? `${s.course.id}@${todo.due}` : `meeting:${s.meeting.id}`
     const row = byActivity.get(key)
     if (row) row.push(todo)
     else {
@@ -324,6 +329,50 @@ function StepsRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: I
           {when && <span>· {when}</span>}
           {/* Quanto dura la lezione: cambia quanto materiale serve. */}
           <span>· {formatHours(s.hours)}</span>
+        </span>
+      </button>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">{checks}</div>
+    </li>
+  )
+}
+
+/** Una riunione con le sue voci: si apre toccando il nome, si spunta ogni voce. */
+function MeetingRow({ todos: list, now, compact, onOpen }: { todos: Todo[]; now: ISODate; compact: boolean; onOpen: () => void }) {
+  const { apply } = useData()
+  const s = list[0].source
+  if (s.kind !== 'meeting') return null
+  const when = whenLabel(list[0], now)
+  const allDone = list.every((t) => t.done)
+  const checks = list.map((todo) =>
+    todo.source.kind !== 'meeting' ? null : (
+      <label key={todo.id} className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
+        <input type="checkbox" checked={todo.done} onChange={() => apply(toggleTodo(todo))} className="size-[18px] shrink-0 accent-[var(--done)]" />
+        <span className={cn(todo.done && 'text-muted-foreground line-through')}>{todo.source.item.text}</span>
+      </label>
+    ),
+  )
+  if (compact) {
+    return (
+      <li className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 pl-4">
+        <button type="button" onClick={onOpen} className={cn('flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm', allDone && 'opacity-60')}>
+          <MeetingIcon className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate font-semibold">{meetingLabel(s.meeting)}</span>
+          {when && <span className="shrink-0 text-muted-foreground">· {when}</span>}
+        </button>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">{checks}</div>
+      </li>
+    )
+  }
+  return (
+    <li className="space-y-2 px-3 py-3 pl-4">
+      <button type="button" onClick={onOpen} className={cn('block w-full min-w-0 text-left', allDone && 'opacity-60')}>
+        <span className="flex min-w-0 items-start gap-2 text-base">
+          <MeetingIcon className="mt-1 size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 font-semibold">{meetingLabel(s.meeting)}</span>
+        </span>
+        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+          {when && <span>{when}</span>}
+          {s.meeting.time && <span>· {s.meeting.time}</span>}
         </span>
       </button>
       <div className="flex flex-wrap gap-x-4 gap-y-1">{checks}</div>
