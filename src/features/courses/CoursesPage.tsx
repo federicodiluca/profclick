@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
-import { CourseName, ProgressBar } from '@/components/bits'
+import { CourseName } from '@/components/bits'
+import { ProgramBar } from '@/components/ProgramBar'
 import { PlusIcon, TimetableIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { currentPeriod, periodSlots, sortedCourses } from '@/core/calendar'
@@ -8,7 +9,7 @@ import { formatShort, type ISODate, startOfWeek, today } from '@/core/dates'
 import { periodGrades } from '@/core/grading'
 import { type Course, type Period, type ProfclickData, weeklyHours } from '@/core/model'
 import { freeSlots } from '@/core/proposal'
-import { topicProgress } from '@/core/progress'
+import { programLine, topicProgress } from '@/core/progress'
 import { courseSurface, formatHours, gradesLine } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { useData } from '@/state/data'
@@ -45,7 +46,6 @@ export default function CoursesPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {courses.map((course) => {
           const progress = topicProgress(data, course)
-          const done = progress.filter((p) => p.status === 'fatto').length
           const grades = period ? periodGrades(data, course, period, now) : undefined
           return (
             <Link key={course.id} to={`/classi/${course.id}`} style={courseSurface(course)} className="block space-y-3 rounded-xl border bg-card p-4 pl-5 shadow-xs transition-opacity hover:opacity-85">
@@ -53,14 +53,12 @@ export default function CoursesPage() {
                 <CourseName course={course} className="font-semibold" />
                 <span className="text-xs text-muted-foreground">{weeklyHours(course)} h/sett.</span>
               </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-muted-foreground">
+              <div className="space-y-1.5">
+                <div className="flex justify-between gap-2 text-xs text-muted-foreground">
                   <span>Programma</span>
-                  <span>
-                    {done}/{progress.length} argomenti
-                  </span>
+                  <span>{programLine(progress)}</span>
                 </div>
-                <ProgressBar value={done} max={progress.length} />
+                <ProgramBar progress={progress} />
               </div>
               {grades && period && (
                 <div className="space-y-0.5 text-xs">

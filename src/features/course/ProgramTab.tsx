@@ -1,5 +1,6 @@
 import { createElement, useState } from 'react'
 import { Segmented, Toggle } from '@/components/bits'
+import { ProgramBar } from '@/components/ProgramBar'
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, DoneIcon, MinorGradeIcon, PasteIcon, PlusIcon, PrepIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -12,7 +13,7 @@ import { formatShort, type ISODate } from '@/core/dates'
 import { placedAssessments } from '@/core/grading'
 import { type ParsedTopic, parseProgram } from '@/core/importText'
 import { assessmentLabel, type Course, GRADE_LABELS, type GradeType, isMinor, type PlannedAssessment, type PrepItem, type Topic } from '@/core/model'
-import { courseTopics, type TopicProgress, topicProgress } from '@/core/progress'
+import { courseTopics, programLine, type TopicProgress, topicProgress } from '@/core/progress'
 import { GRADE_ICONS } from '@/lib/activityIcons'
 import { newId } from '@/lib/id'
 import { cn } from '@/lib/utils'
@@ -64,6 +65,20 @@ export function ProgramTab({ course }: { course: Course }) {
         onClose={() => setAsText(false)}
       />
 
+      {progress.some((p) => !p.topic.assessmentOnly) && (
+        <div className="space-y-1.5">
+          <p className="text-sm text-muted-foreground">{programLine(progress)}</p>
+          <ProgramBar progress={progress} />
+          {/* Finché non se ne spunta uno, si dice che si può: la spunta automatica arriva solo quando si va avanti. */}
+          {!progress.some((p) => p.topic.completed) && (
+            <p className="text-xs text-muted-foreground">
+              Un argomento si segna fatto da solo quando le sue lezioni sono svolte e sei passato al successivo, o l'hai verificato. Se l'hai finito prima,
+              o l'hai fatto senza lezioni in calendario, spuntalo tu dal cerchio a sinistra del titolo.
+            </p>
+          )}
+        </div>
+      )}
+
       {progress.length === 0 && (
         <div className="space-y-3 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
           {programSources(data, course.id).length > 0 ? (
@@ -101,16 +116,20 @@ export function ProgramTab({ course }: { course: Course }) {
                   disabled={p.status === 'fatto' && !p.topic.completed}
                   onClick={() => apply(setTopicCompleted(p.topic.id, !p.topic.completed))}
                   className={cn(
-                    'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold transition-colors',
-                    p.status === 'fatto' ? 'bg-done text-background' : 'bg-muted hover:bg-done/20 hover:text-done',
+                    'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full transition-colors',
+                    p.status === 'fatto' ? 'bg-done text-background' : 'border-2 border-muted-foreground/40 text-muted-foreground/50 hover:border-done hover:bg-done/15 hover:text-done',
                   )}
                 >
-                  {p.status === 'fatto' ? <DoneIcon className="size-4" /> : i + 1}
+                  {/* La spunta si vede sempre, anche vuota: si capisce che si tocca senza passarci sopra. */}
+                  <DoneIcon className="size-4" />
                 </button>
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <button type="button" className="w-full space-y-1.5 text-left" onClick={() => setEditing(p.topic)}>
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                      <span className="font-medium">{p.topic.title}</span>
+                      <span className="font-medium">
+                        <span className="text-muted-foreground tabular-nums">{i + 1}. </span>
+                        {p.topic.title}
+                      </span>
                       <span className="text-xs text-muted-foreground">{periods.find((x) => x.id === p.topic.periodId)?.name ?? 'Periodo da decidere'}</span>
                     </div>
                     {p.topic.points.length > 0 && <p className="text-xs text-muted-foreground">{p.topic.points.join(' · ')}</p>}

@@ -20,8 +20,8 @@ import { archivedProgram, nextSchoolYear } from '@/core/archive'
 import type { ProgramTextInput } from '@/core/programText'
 import { ProgramTextDialog } from '@/features/course/ProgramTextDialog'
 import { allAssessments, allMeetings, toIcs } from '@/core/calendarExport'
-import { schoolWeeks } from '@/core/calendar'
-import { addDays, formatDay, startOfWeek, today } from '@/core/dates'
+import { weeksPassed } from '@/core/calendar'
+import { addDays, formatDay, today } from '@/core/dates'
 import { type Holiday, normalizeData, type SchoolYear } from '@/core/model'
 import { PERIOD_PRESETS, type PeriodPreset, presetPeriods } from '@/core/schoolYear'
 import { newId } from '@/lib/id'
@@ -298,11 +298,7 @@ function YearProgress() {
   const { data } = useData()
   const year = data.year!
   const now = today()
-  const monday = startOfWeek(now)
-  const periods = year.periods.map((p) => {
-    const weeks = schoolWeeks(year, p)
-    return { period: p, weeks: weeks.length, passed: now > p.end ? weeks.length : weeks.filter((w) => w < monday).length }
-  })
+  const periods = weeksPassed(year, now)
   const total = periods.reduce((s, p) => s + p.weeks, 0)
   const passed = periods.reduce((s, p) => s + p.passed, 0)
   if (total === 0) return null

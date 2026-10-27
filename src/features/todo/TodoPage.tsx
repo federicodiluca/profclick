@@ -1,7 +1,7 @@
 import { createElement, useState } from 'react'
 import { Link } from 'wouter'
 import { CourseName, GradeSign, ProgressBar } from '@/components/bits'
-import { DoneIcon, MeetingIcon } from '@/components/icons'
+import { MeetingIcon } from '@/components/icons'
 import { PencilUnderline } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
 import { sortedCourses } from '@/core/calendar'
@@ -72,7 +72,6 @@ export default function TodoPage() {
       : count === 1 ? 'Una voce di nuovo da preparare' : `${count} voci di nuovo da preparare`
     applyWithUndo(setTodosDone(items, done), message)
   }
-  const openCount = list.filter((t) => !t.done && !isFollowUp(t)).length
 
   const onOpen = (todo: Todo) => {
     const s = todo.source
@@ -92,11 +91,6 @@ export default function TodoPage() {
           </h1>
           <p className="mt-1 text-muted-foreground">Quello da chiudere dopo lezioni e riunioni già fatte, quello da preparare per le prossime, e quello che verrà a cose fatte.</p>
         </div>
-        {openCount > 1 && (
-          <Button variant="outline" onClick={() => markAll(list)}>
-            <DoneIcon /> Segna tutto pronto
-          </Button>
-        )}
       </div>
 
       {courses.length > 0 && <CourseFilter courses={courses} hidden={hidden} onToggle={toggle} onShowAll={showAll} />}

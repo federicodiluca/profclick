@@ -76,6 +76,15 @@ export function topicProgress(data: ProfclickData, course: Course): TopicProgres
   })
 }
 
+/** "3 fatti, 1 in corso su 8 argomenti": le prove senza lezioni non contano. */
+export function programLine(progress: TopicProgress[]): string {
+  const topics = progress.filter((p) => !p.topic.assessmentOnly)
+  const done = topics.filter((p) => p.status === 'fatto').length
+  const ongoing = topics.filter((p) => p.status === 'in-corso').length
+  const parts = [`${done} ${done === 1 ? 'fatto' : 'fatti'}`, ...(ongoing > 0 ? [`${ongoing} in corso`] : [])]
+  return `${parts.join(', ')} su ${topics.length} ${topics.length === 1 ? 'argomento' : 'argomenti'}`
+}
+
 /**
  * L'argomento su cui si sta lavorando a una data: quello dell'ultima lezione pianificata
  * prima, o il primo non concluso. Serve a precompilare le scelte.

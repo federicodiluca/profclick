@@ -167,6 +167,15 @@ export function schoolWeeks(year: SchoolYear, period: Period): ISODate[] {
   return weeks
 }
 
+/** Per ogni periodo, le settimane di scuola e quelle già passate a una data. */
+export function weeksPassed(year: SchoolYear, date: ISODate): { period: Period; weeks: number; passed: number }[] {
+  const monday = startOfWeek(date)
+  return year.periods.map((p) => {
+    const weeks = schoolWeeks(year, p)
+    return { period: p, weeks: weeks.length, passed: date > p.end ? weeks.length : weeks.filter((w) => w < monday).length }
+  })
+}
+
 /**
  * L'ultimo giorno di scuola della settimana, ricavato dall'orario: il sabato se qualche classe
  * ha lezione il sabato, altrimenti il venerdì. Senza giorni nell'orario non si sa, e vale il sabato.
