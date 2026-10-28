@@ -65,6 +65,20 @@ function writeDays(key: string, days: Set<string>) {
   }
 }
 
+const GROUPS_KEY = 'profclick-todo-closed-groups'
+
+/** I gruppi chiusi dentro una lista (le settimane di "Da preparare"), per chiave: solo su questo dispositivo. */
+export function useClosedGroups() {
+  const [closed, setClosed] = useState(() => readDays(GROUPS_KEY))
+  const toggle = (key: string) => {
+    const next = new Set(closed)
+    if (!next.delete(key)) next.add(key)
+    writeDays(GROUPS_KEY, next)
+    setClosed(next)
+  }
+  return { isClosed: (key: string) => closed.has(key), toggle }
+}
+
 /**
  * I giorni chiusi nella settimana, per data. Nella settimana in corso i giorni già passati si
  * chiudono da soli, a meno di averli riaperti; tornando alle settimane prima sono aperti, perché

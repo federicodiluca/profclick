@@ -1,7 +1,7 @@
 import { createElement, useState } from 'react'
 import { Link } from 'wouter'
 import { CourseName, GradeSign, ProgressBar } from '@/components/bits'
-import { MeetingIcon } from '@/components/icons'
+import { ChevronDownIcon, ChevronRightIcon, MeetingIcon } from '@/components/icons'
 import { PencilUnderline } from '@/components/pencil'
 import { Button } from '@/components/ui/button'
 import { sortedCourses } from '@/core/calendar'
@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { currentWeek } from '@/lib/week'
 import { useData } from '@/state/data'
 import { ListSection } from '@/components/ListSection'
-import { useListMode } from '@/state/listMode'
+import { useClosedGroups, useListMode } from '@/state/listMode'
 import { useHiddenCourses } from '@/state/weekFilter'
 
 /** Le settimane in vista all'apertura: abbastanza per preparare con calma, non tutto l'anno. */
@@ -50,6 +50,7 @@ export default function TodoPage() {
   const afterMode = useListMode('da-chiudere')
   const beforeMode = useListMode('da-preparare')
   const laterMode = useListMode('a-cose-fatte')
+  const closedGroups = useClosedGroups()
 
   const groups = new Map<ISODate, Todo[]>()
   for (const todo of before.filter((t) => t.due)) {
@@ -133,6 +134,8 @@ export default function TodoPage() {
                     items={items}
                     now={now}
                     compact={beforeMode.mode === 'compatta'}
+                    closed={closedGroups.isClosed(week)}
+                    onToggleOpen={() => closedGroups.toggle(week)}
                     onOpen={onOpen}
                     onMarkAll={() => markAll(items)}
                   />
@@ -144,6 +147,8 @@ export default function TodoPage() {
                     items={undated}
                     now={now}
                     compact={beforeMode.mode === 'compatta'}
+                    closed={closedGroups.isClosed('senza-data')}
+                    onToggleOpen={() => closedGroups.toggle('senza-data')}
                     onOpen={onOpen}
                     onMarkAll={() => markAll(undated)}
                   />
@@ -184,6 +189,8 @@ function TodoGroup({
   items,
   now,
   compact,
+  closed,
+  onToggleOpen,
   onOpen,
   onMarkAll,
 }: {
@@ -192,6 +199,8 @@ function TodoGroup({
   items: Todo[]
   now: ISODate
   compact: boolean
+  closed: boolean
+  onToggleOpen: () => void
   onOpen: (todo: Todo) => void
   onMarkAll: () => void
 }) {
@@ -199,19 +208,28 @@ function TodoGroup({
   return (
     <section className="space-y-2">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-base font-semibold">{title}</h3>
+        <h3 className="text-base font-semibold">
+          <button type="button" onClick={onToggleOpen} aria-expanded={!closed} className="inline-flex items-center gap-1.5 hover:text-primary">
+            {closed ? <ChevronRightIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
+            {title}
+          </button>
+        </h3>
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           {ready === items.length ? 'tutto pronto' : `${ready} di ${items.length} pronte`}
-          {items.filter((t) => !isFollowUp(t)).length > 1 && (
+          {!closed && items.filter((t) => !isFollowUp(t)).length > 1 && (
             <Button variant="ghost" size="sm" onClick={onMarkAll} className="h-7 px-2 text-xs text-primary">
               {ready === items.length ? 'Togli le spunte' : 'Tutte pronte'}
             </Button>
           )}
         </span>
       </div>
-      <ProgressBar value={ready} max={items.length} />
-      {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
-      <TodoList items={items} now={now} compact={compact} onOpen={onOpen} />
+      {!closed && (
+        <>
+          <ProgressBar value={ready} max={items.length} />
+          {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
+          <TodoList items={items} now={now} compact={compact} onOpen={onOpen} />
+        </>
+      )}
     </section>
   )
 }
