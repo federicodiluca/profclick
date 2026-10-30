@@ -5,7 +5,7 @@
 
 import { type Change, setActivityStep, toggleMeetingPrep, togglePrep } from './actions'
 import { courseSlots, sortedCourses } from './calendar'
-import type { ISODate } from './dates'
+import { type ISODate, startOfWeek } from './dates'
 import { sortedMeetings } from './meetings'
 import type { Activity, ActivityStep, Course, Meeting, MeetingPrep, PrepItem, ProfclickData } from './model'
 import { coursePrep } from './prep'
@@ -35,31 +35,35 @@ export function needsPrep(activity: Activity): boolean {
 
 /**
  * Le cose da preparare per le lezioni e le riunioni da oggi fino a `until`, comprese quelle
- * già pronte (restano spuntate finché la lezione non passa), più le voci delle classi ancora
- * senza data. In ordine di scadenza; nello stesso giorno, nell'ordine delle classi.
+ * già pronte (restano spuntate finché la lezione non passa), quelle da chiudere dopo lezioni e
+ * riunioni passate, più le voci delle classi ancora senza data. In ordine di scadenza; nello
+ * stesso giorno, nell'ordine delle classi.
  */
 export function todos(data: ProfclickData, today: ISODate, until: ISODate): Todo[] {
   const result: Todo[] = []
+  const week = startOfWeek(today)
   for (const course of sortedCourses(data)) {
     for (const slot of courseSlots(data, course, undefined, until)) {
       const lesson = slot.lesson
       if (!lesson || lesson.cancelled) continue
-      for (const activity of lesson.activities) {
-        for (const step of activitySteps(activity)) {
+      const steps = lesson.activities.flatMap((activity) =>
+        activitySteps(activity)
           // Prima: finché la lezione non è fatta; quello che serviva, è servito.
-          // Dopo: per le lezioni che vengono, a cose fatte; per quelle passate, finché non è fatto.
-          // Le valutazioni di prima dei passi non li chiedono.
-          const show = isAfter(step.key)
-            ? (slot.date >= today || !step.done) && (Boolean(activity.steps) || slot.date >= STEPS_SINCE)
-            : slot.date >= today && !lesson.done
-          if (!show) continue
-          result.push({
-            id: `${activity.id}:${step.key}`,
-            due: slot.date,
-            done: step.done,
-            source: { kind: 'activity', course, activity, step, floating: slot.floating, index: slot.index, hours: slot.hours, start: slot.start },
-          })
-        }
+          // Dopo: le valutazioni di prima dei passi non li chiedono.
+          .filter((step) => (isAfter(step.key) ? Boolean(activity.steps) || slot.date >= STEPS_SINCE : slot.date >= today && !lesson.done))
+          .map((step) => ({ activity, step })),
+      )
+      // Quello dopo una lezione passata resta tutto, spuntato compreso, finché non è chiuso
+      // del tutto ed è di una settimana prima: così si vede cosa si è fatto, e si toglie la spunta.
+      const keepAfter = slot.date >= week || steps.some(({ step }) => isAfter(step.key) && !step.done)
+      for (const { activity, step } of steps) {
+        if (isAfter(step.key) && !keepAfter) continue
+        result.push({
+          id: `${activity.id}:${step.key}`,
+          due: slot.date,
+          done: step.done,
+          source: { kind: 'activity', course, activity, step, floating: slot.floating, index: slot.index, hours: slot.hours, start: slot.start },
+        })
       }
     }
   }
@@ -70,8 +74,10 @@ export function todos(data: ProfclickData, today: ISODate, until: ISODate): Todo
   }
   // Le cose da fare dopo una riunione (il verbale) restano finché non sono fatte, anche passata la riunione.
   for (const meeting of sortedMeetings(data).filter((m) => m.date <= until)) {
-    // Come per le lezioni: da preparare finché la riunione non c'è stata; dopo, finché non è fatto.
-    const show = (p: MeetingPrep) => (p.after ? meeting.date >= today || !p.done : meeting.date >= today)
+    // Come per le lezioni: da preparare finché la riunione non c'è stata; dopo, tutto finché
+    // non è chiuso del tutto ed è di una settimana prima.
+    const keepAfter = meeting.date >= week || meeting.prep.some((p) => p.after && p.text.trim() && !p.done)
+    const show = (p: MeetingPrep) => (p.after ? keepAfter : meeting.date >= today)
     for (const item of meeting.prep.filter((p) => p.text.trim() && show(p))) {
       result.push({ id: item.id, due: meeting.date, done: item.done, source: { kind: 'meeting', meeting, item } })
     }

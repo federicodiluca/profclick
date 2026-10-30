@@ -27,7 +27,10 @@ I colori scelti per le classi, poi, si vedevano solo in un pallino accanto al no
   quelli proposti. Le ripetizioni di un'attività hanno ognuna i loro passi.
 - **Prima e dopo.** I passi da preparare stanno nel Da fare fino alla lezione, come prima. Quelli
   dopo (correggere, riconsegnare, registro) compaiono dal giorno della lezione e **restano finché
-  non sono fatti**, come il verbale di una riunione (ADR 0021). Le valutazioni passate prima del
+  non sono fatti**, come il verbale di una riunione (ADR 0021). Quelli spuntati non spariscono:
+  restano barrati, con la lezione o la riunione, finché non sono chiusi tutti e la settimana non
+  è passata; così si vede cosa si è già fatto e si toglie una spunta data per sbaglio. Dopo, le
+  spunte si ritrovano nella finestra della lezione o della riunione. Le valutazioni passate prima del
   28 settembre 2026, quando i passi non c'erano, non li chiedono, a meno di averli toccati.
 - Il Da fare ha **tre liste**: *Da chiudere*, quello da fare dopo lezioni e riunioni già fatte
   (correzioni, registro, verbali); *Da preparare*, per quelle che vengono, divise per settimana;
