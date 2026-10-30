@@ -14,7 +14,7 @@ import { inlineParts, noteChecks, noteCourses, noteLines, sortedNotes, toggleNot
 import { type Course, emptyData, isDone, lessonKey, type Meeting, meetingLabel, normalizeData, type ProfclickData, sameSchedule, type Topic } from './model'
 import { topicProgress } from './progress'
 import { isFollowUp, isLater, needsPrep, setTodosDone, todos } from './todo'
-import { activitySteps, customStep, defaultSteps, stepLabel } from './steps'
+import { activitySteps, customStep, defaultSteps, isAfter, stepLabel } from './steps'
 import { assessmentTypes, proposeWeeks, shareLessons } from './proposal'
 import { sampleData } from './sample'
 import { defaultSchoolYear } from './schoolYear'
@@ -916,7 +916,13 @@ describe('da fare', () => {
     ])
     expect(list(data)).toContainEqual(['p:altro:Prenotare l’aula', '2026-10-02', false])
     data = setActivityStep('c1', '2026-10-02', 'p', customStep('Prenotare l’aula'), { present: false })(data)
-    const p = data.lessons[lessonKey('c1', '2026-10-02')].activities[0]
+    // Uno scritto a mano per dopo va in fondo, tra quelli dopo.
+    data = setActivityStep('c1', '2026-10-02', 'p', customStep('Avvisare i genitori', true), { present: true })(data)
+    const withAfter = data.lessons[lessonKey('c1', '2026-10-02')].activities[0]
+    expect(activitySteps(withAfter).map((x) => x.key)).toEqual(['prova', 'stampa', 'correggi', 'riconsegna', 'registro', 'dopo:Avvisare i genitori'])
+    expect(isAfter('dopo:Avvisare i genitori')).toBe(true)
+    expect(stepLabel('dopo:Avvisare i genitori', withAfter)).toBe('Avvisare i genitori')
+    const p =data.lessons[lessonKey('c1', '2026-10-02')].activities[0]
     data = updateActivity('c1', '2026-10-02', { ...p, assessment: { ...p.assessment!, type: 'teorico' } })(data)
     expect(activitySteps(data.lessons[lessonKey('c1', '2026-10-02')].activities[0]).map((x) => x.key)).toEqual(['registro'])
     expect(defaultSteps({ id: 'e', kind: 'esercitazione', topicIds: [], text: '' })).toEqual(['esercizi'])

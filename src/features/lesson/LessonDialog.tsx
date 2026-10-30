@@ -545,7 +545,6 @@ function Steps({ courseId, date, activity }: { courseId: string; date: ISODate; 
   const { apply } = useData()
   const steps = activitySteps(activity)
   const extra = optionalSteps(activity)
-  const [custom, setCustom] = useState('')
   const set = (key: StepKey, change: { done?: boolean; present?: boolean }) => apply(setActivityStep(courseId, date, activity.id, key, change))
   const group = (title: string, list: typeof steps) =>
     list.length > 0 && (
@@ -591,29 +590,38 @@ function Steps({ courseId, date, activity }: { courseId: string; date: ISODate; 
             <PlusIcon className="size-3" /> {stepLabel(key, activity)}
           </button>
         ))}
-        <form
-          className="inline-flex items-center"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!custom.trim()) return
-            set(customStep(custom), { present: true })
-            setCustom('')
-          }}
-        >
-          <input
-            value={custom}
-            onChange={(e) => setCustom(e.target.value)}
-            placeholder="Altro…"
-            aria-label="Aggiungi un passo scritto da te"
-            className="w-32 rounded-full border border-dashed bg-transparent px-2 py-0.5 text-xs outline-none placeholder:text-muted-foreground focus:w-48 focus:border-solid focus:border-foreground/30"
-          />
-          {custom.trim() && (
-            <button type="submit" aria-label="Aggiungi" className="ml-1 rounded-full border p-0.5 text-muted-foreground hover:text-foreground">
-              <PlusIcon className="size-3" />
-            </button>
-          )}
-        </form>
+        <CustomStep placeholder="Altro prima…" label="Aggiungi un passo da preparare" onAdd={(text) => set(customStep(text), { present: true })} />
+        <CustomStep placeholder="Altro dopo…" label="Aggiungi un passo da fare dopo" onAdd={(text) => set(customStep(text, true), { present: true })} />
       </div>
     </div>
+  )
+}
+
+/** Un passo scritto a mano: si scrive e si aggiunge con Invio o con il più. */
+function CustomStep({ placeholder, label, onAdd }: { placeholder: string; label: string; onAdd: (text: string) => void }) {
+  const [text, setText] = useState('')
+  return (
+    <form
+      className="inline-flex items-center"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!text.trim()) return
+        onAdd(text)
+        setText('')
+      }}
+    >
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        className="w-32 rounded-full border border-dashed bg-transparent px-2 py-0.5 text-xs outline-none placeholder:text-muted-foreground focus:w-48 focus:border-solid focus:border-foreground/30"
+      />
+      {text.trim() && (
+        <button type="submit" aria-label="Aggiungi" className="ml-1 rounded-full border p-0.5 text-muted-foreground hover:text-foreground">
+          <PlusIcon className="size-3" />
+        </button>
+      )}
+    </form>
   )
 }

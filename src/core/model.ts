@@ -163,8 +163,9 @@ export type StepKey =
   | 'correggi'
   | 'riconsegna'
   | 'registro'
-  /** Un passo scritto a mano: dopo i due punti c'è il suo testo. */
+  /** Un passo scritto a mano, da preparare o da fare dopo: dopo i due punti c'è il suo testo. */
   | `altro:${string}`
+  | `dopo:${string}`
 
 export interface ActivityStep {
   key: StepKey

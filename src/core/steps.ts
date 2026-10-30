@@ -16,7 +16,7 @@ const AFTER: ReadonlySet<StepKey> = new Set(['correggi', 'riconsegna', 'registro
 export const STEPS_SINCE: ISODate = '2026-09-28'
 
 export function isAfter(key: StepKey): boolean {
-  return AFTER.has(key)
+  return AFTER.has(key) || key.startsWith('dopo:')
 }
 
 /** Una valutazione che chiede una prova: scritta o pratica, nuova o di recupero. */
@@ -58,14 +58,17 @@ export function isReady(activity: Activity): boolean {
   return activitySteps(activity).every((s) => isAfter(s.key) || s.done)
 }
 
-/** Un passo scritto a mano: la chiave è il suo testo, così lo stesso testo non si ripete. */
-export function customStep(text: string): StepKey {
-  return `altro:${text.trim()}`
+/** Un passo scritto a mano, prima o dopo: la chiave è il suo testo, così lo stesso testo non si ripete. */
+export function customStep(text: string, after = false): StepKey {
+  return `${after ? 'dopo' : 'altro'}:${text.trim()}`
 }
 
-/** Ordina i passi: prima quelli da preparare, poi quelli dopo, ciascuno nell'ordine proposto; quelli scritti a mano prima di stampare. */
+/**
+ * Ordina i passi: prima quelli da preparare, poi quelli dopo, ciascuno nell'ordine proposto;
+ * quelli scritti a mano da preparare prima di stampare, quelli dopo in fondo.
+ */
 const ORDER: StepKey[] = ['prova', 'rivedere', 'slide', 'esercizi', 'laboratorio', 'materiale', 'stampa', 'correggi', 'riconsegna', 'registro']
-const order = (key: StepKey) => (key.startsWith('altro:') ? ORDER.indexOf('stampa') - 0.5 : ORDER.indexOf(key))
+const order = (key: StepKey) => (key.startsWith('altro:') ? ORDER.indexOf('stampa') - 0.5 : key.startsWith('dopo:') ? ORDER.length : ORDER.indexOf(key))
 
 /** Un passo fatto o da fare; aggiunto o tolto. Da qui i passi sono salvati nell'attività. */
 export function withStep(activity: Activity, key: StepKey, change: { done?: boolean; present?: boolean }): Activity {
@@ -102,6 +105,6 @@ export function stepLabel(key: StepKey, activity: Activity): string {
     case 'registro':
       return 'Voti sul registro'
     default:
-      return key.slice('altro:'.length)
+      return key.slice(key.indexOf(':') + 1)
   }
 }
