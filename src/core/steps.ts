@@ -7,7 +7,7 @@ import type { ISODate } from './dates'
 import type { Activity, ActivityStep, StepKey } from './model'
 
 /** I passi che vengono dopo la lezione: restano da fare anche quando la lezione è passata. */
-const AFTER: ReadonlySet<StepKey> = new Set(['correggi', 'riconsegna', 'registro'])
+const AFTER: ReadonlySet<StepKey> = new Set(['correggi', 'riconsegna', 'registro', 'recupero', 'archivia'])
 
 /**
  * Le valutazioni passate prima di questa data non chiedono i passi dopo, se non li si è toccati:
@@ -29,7 +29,7 @@ function needsTest(activity: Activity): boolean {
 export function defaultSteps(activity: Activity): StepKey[] {
   const a = activity.assessment
   if (activity.kind === 'verifica' && a) {
-    if (needsTest(activity)) return ['prova', 'correggi', 'riconsegna', 'registro']
+    if (needsTest(activity)) return ['prova', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia']
     // L'interrogazione: i voti di ogni giro vanno sul registro. La seconda parte di uno scritto no.
     return a.type === 'teorico' ? ['registro'] : []
   }
@@ -43,7 +43,7 @@ export function defaultSteps(activity: Activity): StepKey[] {
 /** I passi che si possono aggiungere a un'attività, oltre a quelli che ha. */
 export function optionalSteps(activity: Activity): StepKey[] {
   const all: StepKey[] =
-    activity.kind === 'verifica' ? ['prova', 'stampa', 'correggi', 'riconsegna', 'registro'] : ['rivedere', 'slide', 'esercizi', 'laboratorio', 'materiale', 'stampa']
+    activity.kind === 'verifica' ? ['prova', 'stampa', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia'] : ['rivedere', 'slide', 'esercizi', 'laboratorio', 'materiale', 'stampa']
   const have = new Set(activitySteps(activity).map((s) => s.key))
   return all.filter((k) => !have.has(k))
 }
@@ -67,7 +67,7 @@ export function customStep(text: string, after = false): StepKey {
  * Ordina i passi: prima quelli da preparare, poi quelli dopo, ciascuno nell'ordine proposto;
  * quelli scritti a mano da preparare prima di stampare, quelli dopo in fondo.
  */
-const ORDER: StepKey[] = ['prova', 'rivedere', 'slide', 'esercizi', 'laboratorio', 'materiale', 'stampa', 'correggi', 'riconsegna', 'registro']
+const ORDER: StepKey[] = ['prova', 'rivedere', 'slide', 'esercizi', 'laboratorio', 'materiale', 'stampa', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia']
 const order = (key: StepKey) => (key.startsWith('altro:') ? ORDER.indexOf('stampa') - 0.5 : key.startsWith('dopo:') ? ORDER.length : ORDER.indexOf(key))
 
 /** Un passo fatto o da fare; aggiunto o tolto. Da qui i passi sono salvati nell'attività. */
@@ -104,6 +104,10 @@ export function stepLabel(key: StepKey, activity: Activity): string {
       return 'Riconsegnare'
     case 'registro':
       return 'Voti sul registro'
+    case 'recupero':
+      return 'Recupero assenti'
+    case 'archivia':
+      return 'Archiviazione'
     default:
       return key.slice(key.indexOf(':') + 1)
   }

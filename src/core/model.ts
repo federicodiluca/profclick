@@ -163,6 +163,8 @@ export type StepKey =
   | 'correggi'
   | 'riconsegna'
   | 'registro'
+  | 'recupero'
+  | 'archivia'
   /** Un passo scritto a mano, da preparare o da fare dopo: dopo i due punti c'è il suo testo. */
   | `altro:${string}`
   | `dopo:${string}`
