@@ -844,6 +844,7 @@ describe('da fare', () => {
       ['s1:esercizi', '2026-09-30', false],
       ['s2:esercizi', '2026-10-02', false],
       ['v:prova', '2026-10-02', false],
+      ['v:rivedere', '2026-10-02', false],
       ['slide', '2026-10-02', false],
       ['mp', '2026-10-05', false],
       ['libro', null, false],
@@ -881,6 +882,7 @@ describe('da fare', () => {
       ['v:recupero', '2026-09-28', false],
       ['v:archivia', '2026-09-28', false],
       ['p:prova', '2026-10-02', false],
+      ['p:rivedere', '2026-10-02', false],
     ])
     // Quello che verrà dopo il pratico di venerdì si vede già, a parte.
     expect(later(data)).toEqual(['p:correggi', 'p:riconsegna', 'p:registro', 'p:recupero', 'p:archivia'])
@@ -895,9 +897,10 @@ describe('da fare', () => {
       ['v:recupero', '2026-09-28', false],
       ['v:archivia', '2026-09-28', false],
       ['p:prova', '2026-10-02', true],
+      ['p:rivedere', '2026-10-02', true],
     ])
     const closed = (['correggi', 'riconsegna', 'recupero', 'archivia'] as const).reduce((d, key) => setActivityStep('c1', '2026-09-28', 'v', key, { done: true })(d), data)
-    expect(list(closed).map(([id]) => id)).toEqual(['v:correggi', 'v:riconsegna', 'v:registro', 'v:recupero', 'v:archivia', 'p:prova'])
+    expect(list(closed).map(([id]) => id)).toEqual(['v:correggi', 'v:riconsegna', 'v:registro', 'v:recupero', 'v:archivia', 'p:prova', 'p:rivedere'])
     expect(todos(closed, '2026-10-05', '2026-10-11').filter((t) => t.due === '2026-09-28')).toEqual([])
     expect(todos(data, '2026-10-05', '2026-10-11').filter((t) => t.due === '2026-09-28').map((t) => [t.id, t.done])).toEqual([
       ['v:correggi', false],
@@ -908,12 +911,13 @@ describe('da fare', () => {
     ])
     // La stampa si aggiunge quando serve; cambiando tipo tornano i passi proposti.
     data = setActivityStep('c1', '2026-10-02', 'p', 'stampa', { present: true })(data)
-    expect(activitySteps(data.lessons[lessonKey('c1', '2026-10-02')].activities[0]).map((x) => x.key)).toEqual(['prova', 'stampa', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia'])
+    expect(activitySteps(data.lessons[lessonKey('c1', '2026-10-02')].activities[0]).map((x) => x.key)).toEqual(['prova', 'rivedere', 'stampa', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia'])
     // Un passo scritto a mano va tra quelli da preparare, prima della stampa.
     data = setActivityStep('c1', '2026-10-02', 'p', customStep(' Prenotare l’aula '), { present: true })(data)
     const withCustom = data.lessons[lessonKey('c1', '2026-10-02')].activities[0]
     expect(activitySteps(withCustom).map((x) => stepLabel(x.key, withCustom))).toEqual([
       'Preparare la prova e le sue versioni',
+      'Rivedere la verifica',
       'Prenotare l’aula',
       'Stampare le copie',
       'Correggere',
@@ -927,7 +931,7 @@ describe('da fare', () => {
     // Uno scritto a mano per dopo va in fondo, tra quelli dopo.
     data = setActivityStep('c1', '2026-10-02', 'p', customStep('Avvisare i genitori', true), { present: true })(data)
     const withAfter = data.lessons[lessonKey('c1', '2026-10-02')].activities[0]
-    expect(activitySteps(withAfter).map((x) => x.key)).toEqual(['prova', 'stampa', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia', 'dopo:Avvisare i genitori'])
+    expect(activitySteps(withAfter).map((x) => x.key)).toEqual(['prova', 'rivedere', 'stampa', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia', 'dopo:Avvisare i genitori'])
     expect(isAfter('dopo:Avvisare i genitori')).toBe(true)
     expect(stepLabel('dopo:Avvisare i genitori', withAfter)).toBe('Avvisare i genitori')
     const p =data.lessons[lessonKey('c1', '2026-10-02')].activities[0]

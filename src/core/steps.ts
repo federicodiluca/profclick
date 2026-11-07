@@ -29,7 +29,7 @@ function needsTest(activity: Activity): boolean {
 export function defaultSteps(activity: Activity): StepKey[] {
   const a = activity.assessment
   if (activity.kind === 'verifica' && a) {
-    if (needsTest(activity)) return ['prova', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia']
+    if (needsTest(activity)) return ['prova', 'rivedere', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia']
     // L'interrogazione: i voti di ogni giro vanno sul registro. La seconda parte di uno scritto no.
     return a.type === 'teorico' ? ['registro'] : []
   }
@@ -43,7 +43,7 @@ export function defaultSteps(activity: Activity): StepKey[] {
 /** I passi che si possono aggiungere a un'attività, oltre a quelli che ha. */
 export function optionalSteps(activity: Activity): StepKey[] {
   const all: StepKey[] =
-    activity.kind === 'verifica' ? ['prova', 'stampa', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia'] : ['rivedere', 'slide', 'esercizi', 'laboratorio', 'materiale', 'stampa']
+    activity.kind === 'verifica' ? ['prova', 'rivedere', 'stampa', 'correggi', 'riconsegna', 'registro', 'recupero', 'archivia'] : ['rivedere', 'slide', 'esercizi', 'laboratorio', 'materiale', 'stampa']
   const have = new Set(activitySteps(activity).map((s) => s.key))
   return all.filter((k) => !have.has(k))
 }
@@ -87,7 +87,7 @@ export function stepLabel(key: StepKey, activity: Activity): string {
     case 'prova':
       return activity.assessment?.type === 'teorico' ? 'Preparare le domande' : 'Preparare la prova e le sue versioni'
     case 'rivedere':
-      return 'Rivedere la lezione'
+      return test ? 'Rivedere la verifica' : 'Rivedere la lezione'
     case 'attivita':
       return 'Preparare attività custom'
     case 'slide':
