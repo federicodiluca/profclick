@@ -934,7 +934,7 @@ describe('da fare', () => {
     data = updateActivity('c1', '2026-10-02', { ...p, assessment: { ...p.assessment!, type: 'teorico' } })(data)
     expect(activitySteps(data.lessons[lessonKey('c1', '2026-10-02')].activities[0]).map((x) => x.key)).toEqual(['registro'])
     expect(defaultSteps({ id: 'e', kind: 'esercitazione', topicIds: [], text: '' })).toEqual(['esercizi'])
-    expect(defaultSteps({ id: 's', kind: 'spiegazione', topicIds: [], text: '' })).toEqual(['rivedere'])
+    expect(defaultSteps({ id: 's', kind: 'spiegazione', topicIds: [], text: '' })).toEqual(['attivita', 'rivedere'])
   })
 
   it("nello stesso giorno, l'ordine della giornata: lezioni per ora d'inizio, poi le riunioni", () => {
