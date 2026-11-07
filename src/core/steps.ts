@@ -34,7 +34,7 @@ export function defaultSteps(activity: Activity): StepKey[] {
     return a.type === 'teorico' ? ['registro'] : []
   }
   // Una spiegazione si rivede prima di farla; le slide non sempre servono, o ci sono già: si aggiungono.
-  if (activity.kind === 'spiegazione') return ['rivedere']
+  if (activity.kind === 'spiegazione') return ['attivita', 'rivedere']
   if (activity.kind === 'esercitazione') return ['esercizi']
   if (activity.kind === 'laboratorio') return ['laboratorio']
   return ['materiale']
@@ -88,6 +88,8 @@ export function stepLabel(key: StepKey, activity: Activity): string {
       return activity.assessment?.type === 'teorico' ? 'Preparare le domande' : 'Preparare la prova e le sue versioni'
     case 'rivedere':
       return 'Rivedere la lezione'
+    case 'attivita':
+      return 'Preparare attività custom'
     case 'slide':
       return 'Slide'
     case 'esercizi':

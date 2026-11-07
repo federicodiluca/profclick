@@ -155,6 +155,7 @@ export interface Assessment {
 export type StepKey =
   | 'prova'
   | 'rivedere'
+  | 'attivita'
   | 'slide'
   | 'esercizi'
   | 'laboratorio'
