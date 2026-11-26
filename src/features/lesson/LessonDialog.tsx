@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { activityRepeats, addActivity, cancelAndShift, deleteLesson, type LessonTime, lessonTimeProblem, moveLesson, removeActivity, setActivityStep, setCancelled, setDone, setNote, setRepeats, toggleRepeat, updateActivity } from '@/core/actions'
-import { courseSlots, isAvailable } from '@/core/calendar'
+import { courseSlots, isAvailable, periodOf } from '@/core/calendar'
 import { assessmentEntry, googleCalendarLink } from '@/core/calendarExport'
 import { addDays, formatDay, formatLong, formatShort, type ISODate, startOfWeek } from '@/core/dates'
 import { type Activity, type ActivityKind, type Assessment, GRADE_LABELS, type GradeType, isAutoDone, isDone, lessonKey, type StepKey } from '@/core/model'
@@ -28,16 +28,15 @@ const MINOR = -1
 type QuickAdd = { label: string; kind: ActivityKind; assessment?: Assessment }
 
 /**
- * I pulsanti per aggiungere un'attività: in vista le quattro di tutti i giorni, le altre a un
- * tocco. La verifica nasce scritta, o pratica nelle ore con l'ITP; il tipo si cambia dopo.
+ * I pulsanti per aggiungere un'attività, tutti in vista: nascoste dietro un tocco, quelle rare
+ * (ed. civica) si dimenticavano. La verifica nasce scritta, o pratica nelle ore con l'ITP; il
+ * tipo si cambia dopo.
  */
-const MAIN_ADD: QuickAdd[] = [
+const QUICK_ADD: QuickAdd[] = [
   { label: 'Spiegazione', kind: 'spiegazione' },
   { label: 'Esercitazione', kind: 'esercitazione' },
   { label: 'Laboratorio', kind: 'laboratorio' },
   { label: 'Verifica', kind: 'verifica', assessment: { type: 'scritto', weight: 100, continues: false } },
-]
-const MORE_ADD: QuickAdd[] = [
   { label: 'Ripasso', kind: 'ripasso' },
   { label: 'Voto minore', kind: 'verifica', assessment: { type: 'pratico', weight: MINOR, continues: false } },
   { label: 'Ed. civica', kind: 'civica' },
@@ -45,7 +44,7 @@ const MORE_ADD: QuickAdd[] = [
 ]
 
 /** Con pochi argomenti si vedono tutti; con tanti, quelli vicini alla lezione. */
-const ALL_TOPICS_UP_TO = 5
+const ALL_TOPICS_UP_TO = 8
 
 export function LessonDialog({ courseId, date, onClose }: { courseId: string; date: ISODate | null; onClose: () => void }) {
   // Spostata in un altro giorno, la finestra resta aperta e segue la lezione.
@@ -69,7 +68,6 @@ function LessonEditor({ courseId, date, onClose, onMoved }: { courseId: string; 
   const course = data.courses[courseId]
   const lesson = data.lessons[lessonKey(courseId, date)]
   const [noteOpen, setNoteOpen] = useState(Boolean(lesson?.note))
-  const [moreOpen, setMoreOpen] = useState(false)
   const [skipping, setSkipping] = useState(false)
   const [timeEdit, setTimeEdit] = useState<LessonTime | null>(null)
   const note = useAutosave((value) => course && value !== (lesson?.note ?? '') && apply(setNote(courseId, date, value)))
@@ -152,7 +150,7 @@ function LessonEditor({ courseId, date, onClose, onMoved }: { courseId: string; 
           </div>
 
           <div className="flex flex-wrap gap-1.5">
-            {[...MAIN_ADD, ...(moreOpen ? MORE_ADD : [])].map((item) => (
+            {QUICK_ADD.map((item) => (
               <Button key={item.label} variant="outline" size="sm" onClick={() => add(item)}>
                 {createElement(activityIcon(item.assessment ? { ...item, assessment: { ...item.assessment, weight: item.assessment.weight === MINOR ? 50 : 100 } } : item), {
                   className: item.kind === 'verifica' ? 'text-pencil-red' : 'text-pencil-blue',
@@ -160,11 +158,6 @@ function LessonEditor({ courseId, date, onClose, onMoved }: { courseId: string; 
                 {item.label}
               </Button>
             ))}
-            {!moreOpen && (
-              <Button variant="ghost" size="sm" onClick={() => setMoreOpen(true)}>
-                Ripasso, voto minore, ed. civica…
-              </Button>
-            )}
           </div>
 
           <div className="flex flex-wrap gap-1.5">
@@ -429,9 +422,15 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
   const toggleTopic = (id: string) =>
     update({ topicIds: activity.topicIds.includes(id) ? activity.topicIds.filter((t) => t !== id) : [...activity.topicIds, id] })
   const [allTopics, setAllTopics] = useState(false)
-  // Gli argomenti vicini: quelli scelti, quello in corso, il precedente e il successivo.
+  // Gli argomenti vicini: quelli scelti, quello in corso, il precedente e il successivo, e quelli
+  // ancora da concludere nel periodo della lezione.
   const around = topics.findIndex((t) => t.id === topicAround(data, course, date)?.id)
-  const near = new Set([...activity.topicIds, ...(around >= 0 ? topics.slice(Math.max(0, around - 1), around + 2).map((t) => t.id) : [])])
+  const period = data.year && periodOf(data.year, date)
+  const near = new Set([
+    ...activity.topicIds,
+    ...(around >= 0 ? topics.slice(Math.max(0, around - 1), around + 2).map((t) => t.id) : []),
+    ...(period ? topics.filter((t) => t.periodId === period.id && !t.completed).map((t) => t.id) : []),
+  ])
   const shownTopics = allTopics || topics.length <= ALL_TOPICS_UP_TO ? topics : topics.filter((t) => near.has(t.id))
 
   return (
@@ -501,8 +500,12 @@ function ActivityEditor({ courseId, date, activity }: { courseId: string; date: 
             </Toggle>
           ))}
           {shownTopics.length < topics.length && (
-            <button type="button" onClick={() => setAllTopics(true)} className="px-1.5 text-xs font-medium text-primary hover:underline">
-              Tutti gli argomenti ({topics.length})
+            <button
+              type="button"
+              onClick={() => setAllTopics(true)}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary/50 px-2.5 py-0.5 text-xs font-medium text-primary hover:bg-primary/5"
+            >
+              <PlusIcon className="size-3" /> {topics.length - shownTopics.length === 1 ? 'Un altro argomento' : `Altri ${topics.length - shownTopics.length} argomenti`}
             </button>
           )}
         </div>
